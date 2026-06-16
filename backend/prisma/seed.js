@@ -71,6 +71,37 @@ async function main() {
   });
 
   console.log(`✅ Rol ADMINISTRADOR asignado con éxito a ${adminEmail}`);
+
+  // 4. Crear Zonas por defecto (Fase 6: Salón Principal)
+  const zoneName = 'Salón Principal';
+  const salonPrincipal = await prisma.zone.upsert({
+    where: { name: zoneName },
+    update: { deletedAt: null },
+    create: {
+      name: zoneName,
+      description: 'Área del comedor principal del restaurante'
+    }
+  });
+  console.log(`✅ Zona procesada: ${zoneName}`);
+
+  // 5. Crear Mesas de ejemplo (Mesas 1 a 10, todas libres y asignadas al Salón Principal)
+  const numMesas = 10;
+  for (let i = 1; i <= numMesas; i++) {
+    await prisma.table.upsert({
+      where: { number: i },
+      update: {
+        zoneId: salonPrincipal.id,
+        deletedAt: null
+      },
+      create: {
+        number: i,
+        status: 'FREE',
+        zoneId: salonPrincipal.id
+      }
+    });
+  }
+  console.log(`✅ Mesas creadas/procesadas: Mesas 1 a ${numMesas} en ${zoneName}`);
+
   console.log('🌱 Proceso de siembra completado con éxito.');
 }
 

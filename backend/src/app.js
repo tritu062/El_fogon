@@ -11,6 +11,8 @@ const errorHandler = require('./middlewares/errorHandler');
 // Importar rutas
 const healthRoutes = require('./modules/health/health.routes');
 const authRoutes = require('./modules/auth/auth.routes');
+const zoneRoutes = require('./modules/zones/zones.routes');
+const tableRoutes = require('./modules/tables/tables.routes');
 
 const app = express();
 
@@ -35,6 +37,8 @@ app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 // 5. Registro de Rutas (Prefixadas con /api para consistencia)
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/zones', zoneRoutes);
+app.use('/api/tables', tableRoutes);
 
 // 6. Middleware para atrapar solicitudes a rutas inexistentes (404)
 app.use((req, res, next) => {

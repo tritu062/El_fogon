@@ -91,3 +91,41 @@ model RefreshToken {
 
   @@map("refresh_tokens")
 }
+
+// Modelo para áreas físicas del restaurante
+model Zone {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at") // Soft delete
+
+  // Relaciones
+  tables      Table[]
+
+  @@map("zones")
+}
+
+// Estados de una mesa
+enum TableStatus {
+  FREE
+  OCCUPIED
+  RESERVED
+}
+
+// Modelo para mesas individuales
+model Table {
+  id        Int         @id @default(autoincrement())
+  number    Int         @unique // Identificador correlativo único de la mesa
+  status    TableStatus @default(FREE)
+  zoneId    Int         @map("zone_id")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  deletedAt DateTime?   @map("deleted_at") // Soft delete
+
+  // Relación
+  zone      Zone        @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+
+  @@map("tables")
+}

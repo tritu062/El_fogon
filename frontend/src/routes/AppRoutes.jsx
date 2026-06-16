@@ -5,6 +5,8 @@ import RoleRedirect from './RoleRedirect';
 import LoginPage from '../features/auth/pages/LoginPage';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { AdminDashboard, WaiterDashboard, ChefDashboard, CashierDashboard } from '../features/dashboard/pages/Dashboards';
+import SalonDashboard from '../features/tables/pages/SalonDashboard';
+import AdminTablesConfig from '../features/tables/pages/AdminTablesConfig';
 
 // Vista local rápida de Acceso Denegado (403)
 function UnauthorizedPage() {
@@ -44,10 +46,12 @@ export default function AppRoutes() {
           {/* Rutas restringidas por roles específicos */}
           <Route element={<ProtectedRoute allowedRoles={['ADMINISTRADOR']} />}>
             <Route path="admin" element={<AdminDashboard />} />
+            <Route path="admin/tables" element={<AdminTablesConfig />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['MESERO', 'ADMINISTRADOR']} />}>
             <Route path="waiter" element={<WaiterDashboard />} />
+            <Route path="waiter/tables" element={<SalonDashboard />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['COCINERO', 'ADMINISTRADOR']} />}>
