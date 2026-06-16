@@ -1,0 +1,93 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Modelo de Usuario
+model User {
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  password      String         // Contraseña hasheada con bcrypt
+  firstName     String         @map("first_name")
+  lastName      String         @map("last_name")
+  isActive      Boolean        @default(true) @map("is_active")
+  loginAttempts Int            @default(0) @map("login_attempts") // Intentos fallidos de inicio de sesión
+  lockUntil     DateTime?      @map("lock_until") // Bloqueo temporal de la cuenta
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  deletedAt     DateTime?      @map("deleted_at") // Soft delete
+
+  // Relaciones
+  roles         UserRole[]
+  auditLogs     AuditLog[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+// Modelo de Rol
+model Role {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique // Ejemplo: "ADMINISTRADOR", "MESERO"
+  description String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  deletedAt   DateTime?  @map("deleted_at") // Soft delete
+
+  // Relaciones
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+// Tabla Intermedia explícita de relación Muchos a Muchos entre Usuario y Rol
+model UserRole {
+  userId    Int       @map("user_id")
+  roleId    Int       @map("role_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at") // Soft delete
+
+  // Relaciones y constraints de FK
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// Modelo de Registro de Auditoría para Seguridad e Historial
+model AuditLog {
+  id          Int       @id @default(autoincrement())
+  userId      Int?      @map("user_id") // Opcional
+  action      String    // Ejemplo: "LOGIN_FALLIDO", "CREAR_PEDIDO"
+  description String    // Detalle legible de la acción
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at") // Soft delete
+
+  // Relación
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+// Modelo para almacenamiento de Refresh Tokens activos
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relación
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}

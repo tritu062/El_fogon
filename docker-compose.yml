@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: fogon-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-restaurante_el_fogon}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - fogon-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-restaurante_el_fogon}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  fogon-network:
+    driver: bridge
+
+volumes:
+  db-data:
+    driver: local

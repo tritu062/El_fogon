@@ -1,0 +1,49 @@
+const express = require('express');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const path = require('path');
+
+const envConfig = require('./config/env');
+const requestLogger = require('./middlewares/requestLogger');
+const limiter = require('./middlewares/rateLimiter');
+const errorHandler = require('./middlewares/errorHandler');
+
+// Importar rutas
+const healthRoutes = require('./modules/health/health.routes');
+const authRoutes = require('./modules/auth/auth.routes');
+
+const app = express();
+
+// 1. Configuración de Seguridad y CORS
+app.use(cors({
+  origin: envConfig.FRONTEND_URL,
+  credentials: true // Necesario para que el cliente lea cookies httpOnly
+}));
+
+// 2. Parsers de Datos
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// 3. Middlewares de Auditoría y Control de Flujo
+app.use(requestLogger);
+app.use(limiter);
+
+// 4. Servicio de Archivos Estáticos (Fotos de platos, recibos, etc.)
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
+// 5. Registro de Rutas (Prefixadas con /api para consistencia)
+app.use('/api/health', healthRoutes);
+app.use('/api/auth', authRoutes);
+
+// 6. Middleware para atrapar solicitudes a rutas inexistentes (404)
+app.use((req, res, next) => {
+  const error = new Error(`La ruta solicitada no existe: ${req.method} ${req.originalUrl}`);
+  error.statusCode = 404;
+  next(error);
+});
+
+// 7. Manejador de Errores Centralizado (Siempre al final de la pila)
+app.use(errorHandler);
+
+module.exports = app;

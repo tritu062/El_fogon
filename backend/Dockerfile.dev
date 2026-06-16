@@ -1,0 +1,21 @@
+FROM node:18-alpine
+
+# Instalar dependencias del sistema necesarias para Prisma
+RUN apk add --no-cache openssl libc6-compat
+
+WORKDIR /app
+
+# Instalar dependencias primero para aprovechar la caché de capas de Docker
+COPY package*.json ./
+
+RUN npm install
+
+# Copiar el resto del código
+COPY . .
+
+# Generar el cliente de Prisma
+RUN npx prisma generate
+
+EXPOSE 4000
+
+CMD ["npm", "run", "dev"]
