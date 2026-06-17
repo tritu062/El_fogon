@@ -7,6 +7,8 @@ import DashboardLayout from '../layouts/DashboardLayout';
 import { AdminDashboard, WaiterDashboard, ChefDashboard, CashierDashboard } from '../features/dashboard/pages/Dashboards';
 import SalonDashboard from '../features/tables/pages/SalonDashboard';
 import AdminTablesConfig from '../features/tables/pages/AdminTablesConfig';
+import AdminMenuConfig from '../features/catalog/pages/AdminMenuConfig';
+import OrderTaking from '../features/orders/pages/OrderTaking';
 
 // Vista local rápida de Acceso Denegado (403)
 function UnauthorizedPage() {
@@ -47,11 +49,13 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute allowedRoles={['ADMINISTRADOR']} />}>
             <Route path="admin" element={<AdminDashboard />} />
             <Route path="admin/tables" element={<AdminTablesConfig />} />
+            <Route path="admin/menu" element={<AdminMenuConfig />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['MESERO', 'ADMINISTRADOR']} />}>
             <Route path="waiter" element={<WaiterDashboard />} />
             <Route path="waiter/tables" element={<SalonDashboard />} />
+            <Route path="waiter/order" element={<OrderTaking />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['COCINERO', 'ADMINISTRADOR']} />}>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Grid, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Grid, AlertCircle, ShoppingCart } from 'lucide-react';
 
 /**
  * Tarjeta visual premium para representar el estado de una mesa.
@@ -117,6 +118,22 @@ export default function TableCard({ table, onStatusChange, canChangeStatus }) {
         <div className="mt-4 pt-3 border-t border-slate-105 dark:border-slate-800/60 flex items-center space-x-1.5 text-xs text-slate-400 dark:text-slate-500">
           <AlertCircle className="w-3.5 h-3.5" />
           <span>Solo lectura</span>
+        </div>
+      )}
+
+      {canChangeStatus && (
+        <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/60">
+          <Link
+            to={`/dashboard/waiter/order?tableId=${id}`}
+            className={`w-full inline-flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-white transition-all shadow-sm ${
+              status === 'OCCUPIED'
+                ? 'bg-red-500 hover:bg-red-600 shadow-red-500/10'
+                : 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/10'
+            }`}
+          >
+            <ShoppingCart className="w-3.5 h-3.5" />
+            {status === 'OCCUPIED' ? 'Adicionar a Comanda' : 'Tomar Pedido'}
+          </Link>
         </div>
       )}
     </div>

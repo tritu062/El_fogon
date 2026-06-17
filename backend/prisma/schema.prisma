@@ -25,6 +25,7 @@ model User {
   roles         UserRole[]
   auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
+  orders        Order[]
 
   @@map("users")
 }
@@ -126,6 +127,91 @@ model Table {
 
   // Relación
   zone      Zone        @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+  orders    Order[]
 
   @@map("tables")
+
+}
+
+// Modelo para categorías del menú (ej: Corrientes, Ejecutivos, Especiales)
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at") // Soft delete
+
+  // Relaciones
+  items       Item[]
+
+  @@map("categories")
+}
+
+// Modelo para platos y bebidas
+model Item {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  price       Int       // Almacenado en centavos (ej: 1550 para $15.50)
+  imageUrl    String?   @map("image_url")
+  isAvailable Boolean   @default(true) @map("is_available")
+  modifiers   Json?     // Modificadores de plato en formato JSON estructurado
+  categoryId  Int       @map("category_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at") // Soft delete
+
+  // Relaciones
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  orderItems  OrderItem[]
+
+  @@map("items")
+}
+
+// Estados del pedido
+enum OrderStatus {
+  PENDING
+  READY
+  PAID
+  CANCELLED
+}
+
+// Modelo de Pedido / Comanda
+model Order {
+  id        Int         @id @default(autoincrement())
+  status    OrderStatus @default(PENDING)
+  tableId   Int?        @map("table_id") // Nullable para "Para llevar" / "Delivery"
+  waiterId  Int         @map("waiter_id") // Mesero que registró el pedido
+  total     Int         @default(0)       // En centavos
+  createdAt DateTime    @default(now())   @map("created_at")
+  updatedAt DateTime    @updatedAt        @map("updated_at")
+  deletedAt DateTime?   @map("deleted_at") // Soft delete
+
+  // Relaciones
+  table     Table?      @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  waiter    User        @relation(fields: [waiterId], references: [id], onDelete: Restrict)
+  orderItems OrderItem[]
+
+  @@map("orders")
+}
+
+// Modelo de detalle del Pedido (Ítems en comanda)
+model OrderItem {
+  id                Int       @id @default(autoincrement())
+  orderId           Int       @map("order_id")
+  itemId            Int       @map("item_id")
+  quantity          Int       @default(1)
+  price             Int       // Precio de venta histórico en centavos
+  notes             String?   // Notas de cocina (ej: "Sin cebolla")
+  selectedModifiers Json?     @map("selected_modifiers") // Modificadores aplicados en formato JSON
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at") // Soft delete
+
+  // Relaciones
+  order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  item              Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@map("order_items")
 }

@@ -13,6 +13,8 @@ const healthRoutes = require('./modules/health/health.routes');
 const authRoutes = require('./modules/auth/auth.routes');
 const zoneRoutes = require('./modules/zones/zones.routes');
 const tableRoutes = require('./modules/tables/tables.routes');
+const catalogRoutes = require('./modules/catalog/catalog.routes');
+const orderRoutes = require('./modules/orders/orders.routes');
 
 const app = express();
 
@@ -39,6 +41,8 @@ app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/zones', zoneRoutes);
 app.use('/api/tables', tableRoutes);
+app.use('/api', catalogRoutes);
+app.use('/api/orders', orderRoutes);
 
 // 6. Middleware para atrapar solicitudes a rutas inexistentes (404)
 app.use((req, res, next) => {
