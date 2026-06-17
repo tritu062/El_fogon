@@ -72,6 +72,70 @@ async function main() {
 
   console.log(`✅ Rol ADMINISTRADOR asignado con éxito a ${adminEmail}`);
 
+  // 3.1 Crear y vincular otros usuarios de desarrollo (Mesero, Cocinero, Cajero)
+  const additionalUsers = [
+    {
+      email: 'waiter@elfogon.com',
+      password: 'Waiter123!',
+      firstName: 'Mesero',
+      lastName: 'El Fogón',
+      roleName: 'MESERO'
+    },
+    {
+      email: 'chef@elfogon.com',
+      password: 'Chef123!',
+      firstName: 'Cocinero',
+      lastName: 'El Fogón',
+      roleName: 'COCINERO'
+    },
+    {
+      email: 'cashier@elfogon.com',
+      password: 'Cashier123!',
+      firstName: 'Cajero',
+      lastName: 'El Fogón',
+      roleName: 'CAJERO'
+    }
+  ];
+
+  for (const userInfo of additionalUsers) {
+    const hashedUserPassword = bcrypt.hashSync(userInfo.password, 10);
+    const dbUser = await prisma.user.upsert({
+      where: { email: userInfo.email },
+      update: {
+        password: hashedUserPassword,
+        firstName: userInfo.firstName,
+        lastName: userInfo.lastName,
+        isActive: true
+      },
+      create: {
+        email: userInfo.email,
+        password: hashedUserPassword,
+        firstName: userInfo.firstName,
+        lastName: userInfo.lastName,
+        isActive: true
+      }
+    });
+
+    console.log(`✅ Usuario ${userInfo.roleName} procesado: ${userInfo.email}`);
+
+    const role = dbRoles[userInfo.roleName];
+    await prisma.userRole.upsert({
+      where: {
+        userId_roleId: {
+          userId: dbUser.id,
+          roleId: role.id
+        }
+      },
+      update: {},
+      create: {
+        userId: dbUser.id,
+        roleId: role.id
+      }
+    });
+
+    console.log(`✅ Rol ${userInfo.roleName} asignado con éxito a ${userInfo.email}`);
+  }
+
   // 4. Crear Zonas por defecto (Fase 6: Salón Principal)
   const zoneName = 'Salón Principal';
   const salonPrincipal = await prisma.zone.upsert({

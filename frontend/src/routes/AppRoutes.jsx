@@ -8,6 +8,8 @@ import { AdminDashboard, WaiterDashboard, ChefDashboard, CashierDashboard } from
 import SalonDashboard from '../features/tables/pages/SalonDashboard';
 import AdminTablesConfig from '../features/tables/pages/AdminTablesConfig';
 import AdminMenuConfig from '../features/catalog/pages/AdminMenuConfig';
+import AdminUsersConfig from '../features/auth/pages/AdminUsersConfig';
+import AdminAuditLogs from '../features/auth/pages/AdminAuditLogs';
 import OrderTaking from '../features/orders/pages/OrderTaking';
 import KitchenKds from '../features/kitchen/pages/KitchenKds';
 import CashRegisterGate from '../features/cash/components/CashRegisterGate';
@@ -53,8 +55,10 @@ export default function AppRoutes() {
           {/* Rutas restringidas por roles específicos */}
           <Route element={<ProtectedRoute allowedRoles={['ADMINISTRADOR']} />}>
             <Route path="admin" element={<AdminDashboard />} />
+            <Route path="admin/users" element={<AdminUsersConfig />} />
             <Route path="admin/tables" element={<AdminTablesConfig />} />
             <Route path="admin/menu" element={<AdminMenuConfig />} />
+            <Route path="admin/audit" element={<AdminAuditLogs />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['MESERO', 'ADMINISTRADOR']} />}>

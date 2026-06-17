@@ -1,5 +1,6 @@
 const { prisma } = require('../../config/db');
 const logger = require('../../config/logger');
+const { escapeHtml } = require('../../utils/sanitize');
 const {
   createOrderSchema,
   appendItemsSchema,
@@ -131,7 +132,7 @@ async function createOrder(req, res, next) {
       });
     }
 
-    const { tableId, items } = parsed.data;
+    const { tableId, orderType, items } = parsed.data;
     const waiterId = req.user.id;
 
     // Ejecutar creación del pedido dentro de una transacción de Prisma
@@ -144,6 +145,10 @@ async function createOrder(req, res, next) {
 
         if (!table) {
           throw new Error('TABLE_NOT_FOUND');
+        }
+
+        if (table.status !== 'FREE') {
+          throw new Error('TABLE_ALREADY_OCCUPIED');
         }
       }
 
@@ -179,6 +184,7 @@ async function createOrder(req, res, next) {
       const order = await tx.order.create({
         data: {
           tableId: tableId || null,
+          orderType: orderType || 'PRESENCIAL',
           waiterId,
           total: calculatedTotal,
           status: 'PENDING',
@@ -212,6 +218,17 @@ async function createOrder(req, res, next) {
         });
       }
 
+      // Registrar acción en log de auditoría
+      await tx.auditLog.create({
+        data: {
+          userId: waiterId,
+          action: 'CREAR_PEDIDO',
+          description: `Se creó el pedido ID ${order.id} (Tipo: ${order.orderType}) asignado a ${tableId ? `Mesa ${order.table.number}` : 'Para Llevar/Domicilio'} por un total de $${(order.total / 100).toFixed(2)}`,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']
+        }
+      });
+
       return order;
     });
 
@@ -228,6 +245,14 @@ async function createOrder(req, res, next) {
         status: 'error',
         statusCode: 400,
         message: 'La mesa seleccionada no existe o está inactiva.'
+      });
+    }
+
+    if (error.message === 'TABLE_ALREADY_OCCUPIED') {
+      return res.status(400).json({
+        status: 'error',
+        statusCode: 400,
+        message: 'La mesa seleccionada ya está ocupada por otro pedido activo.'
       });
     }
 
@@ -442,12 +467,20 @@ async function updateOrderStatus(req, res, next) {
           message: 'Permiso denegado. Solo cajeros y administradores pueden marcar pedidos como pagados.'
         });
       }
-    } else if (status === 'READY') {
-      if (!userRoles.includes('COCINERO') && !userRoles.includes('MESERO') && !userRoles.includes('ADMINISTRADOR')) {
+    } else if (status === 'PREPARING' || status === 'READY') {
+      if (!userRoles.includes('COCINERO') && !userRoles.includes('ADMINISTRADOR') && !userRoles.includes('MESERO')) {
         return res.status(403).json({
           status: 'error',
           statusCode: 403,
-          message: 'Permiso denegado. Rol no autorizado para marcar pedidos como listos.'
+          message: 'Permiso denegado. Solo cocineros, meseros y administradores pueden cambiar este estado.'
+        });
+      }
+    } else if (status === 'SERVED') {
+      if (!userRoles.includes('MESERO') && !userRoles.includes('ADMINISTRADOR')) {
+        return res.status(403).json({
+          status: 'error',
+          statusCode: 403,
+          message: 'Permiso denegado. Solo los meseros y administradores pueden marcar pedidos como servidos.'
         });
       }
     }
@@ -489,6 +522,17 @@ async function updateOrderStatus(req, res, next) {
         }
       });
 
+      // Registrar acción en log de auditoría
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'ACTUALIZAR_ESTADO_PEDIDO',
+          description: `Se actualizó el estado del pedido ID ${id} de ${order.status} a ${status}`,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']
+        }
+      });
+
       // Si el pedido se marca como PAID o CANCELLED, y tiene mesa asignada,
       // verificar si hay otros pedidos activos en esta misma mesa.
       // Si no los hay, liberar la mesa (poner en FREE).
@@ -497,7 +541,7 @@ async function updateOrderStatus(req, res, next) {
           where: {
             tableId: order.tableId,
             id: { not: id },
-            status: { in: ['PENDING', 'READY'] },
+            status: { in: ['PENDING', 'PREPARING', 'READY', 'SERVED'] },
             deletedAt: null
           }
         });
@@ -549,10 +593,10 @@ async function getKitchenOrders(req, res, next) {
     todayStart.setHours(0, 0, 0, 0);
 
     const [pending, ready] = await Promise.all([
-      // Pedidos PENDING (por preparar), más antiguos primero (FIFO)
+      // Pedidos PENDING o PREPARING (por preparar), más antiguos primero (FIFO)
       prisma.order.findMany({
         where: {
-          status: 'PENDING',
+          status: { in: ['PENDING', 'PREPARING'] },
           deletedAt: null
         },
         include: {
@@ -611,11 +655,219 @@ async function getKitchenOrders(req, res, next) {
   }
 }
 
+// 7. Solicitar pre-cuenta para un pedido
+async function requestOrderPreBill(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        status: 'error',
+        statusCode: 400,
+        message: 'ID de pedido inválido.'
+      });
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id, deletedAt: null }
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        status: 'error',
+        statusCode: 404,
+        message: 'Pedido no encontrado.'
+      });
+    }
+
+    if (order.status === 'PAID' || order.status === 'CANCELLED') {
+      return res.status(400).json({
+        status: 'error',
+        statusCode: 400,
+        message: 'No se puede solicitar pre-cuenta para un pedido ya pagado o cancelado.'
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({
+        where: { id },
+        data: { isBillRequested: true },
+        include: {
+          table: true,
+          waiter: {
+            select: { id: true, firstName: true, lastName: true }
+          }
+        }
+      });
+
+      // Crear log de auditoría
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'SOLICITAR_PRECUENTA',
+          description: `Se solicitó la pre-cuenta (cobro) para el pedido ID ${id} (${updated.tableId ? `Mesa ${updated.table.number}` : 'Para Llevar/Domicilio'})`,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']
+        }
+      });
+
+      return updated;
+    });
+
+    logger.info(`Pre-cuenta solicitada para pedido ID ${id} por usuario ID ${req.user.id}`);
+
+    return res.status(200).json({
+      status: 'success',
+      order: result
+    });
+  } catch (error) {
+    logger.error(`Error al solicitar pre-cuenta para pedido ID ${req.params.id}:`, error);
+    next(error);
+  }
+}
+
+// 8. Cancelar un ítem individual de la comanda con motivo
+async function cancelOrderItem(req, res, next) {
+  try {
+    const orderId = parseInt(req.params.orderId, 10);
+    const itemId = parseInt(req.params.itemId, 10);
+
+    if (isNaN(orderId) || isNaN(itemId)) {
+      return res.status(400).json({
+        status: 'error',
+        statusCode: 400,
+        message: 'ID de pedido o ID de ítem inválido.'
+      });
+    }
+
+    const { reason } = req.body;
+    if (!reason || reason.trim().length < 3) {
+      return res.status(400).json({
+        status: 'error',
+        statusCode: 400,
+        message: 'Debe proporcionar un motivo válido de al menos 3 caracteres.'
+      });
+    }
+
+    const sanitizedReason = escapeHtml(reason.trim());
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Obtener pedido
+      const order = await tx.order.findFirst({
+        where: { id: orderId, deletedAt: null }
+      });
+
+      if (!order) {
+        throw new Error('ORDER_NOT_FOUND');
+      }
+
+      if (order.status === 'PAID' || order.status === 'CANCELLED') {
+        throw new Error('ORDER_FINALIZED');
+      }
+
+      // 2. Obtener el ítem de la comanda
+      const orderItem = await tx.orderItem.findFirst({
+        where: { id: itemId, orderId, deletedAt: null },
+        include: { item: true }
+      });
+
+      if (!orderItem) {
+        throw new Error('ORDER_ITEM_NOT_FOUND');
+      }
+
+      // 3. Regla de seguridad: Si está READY o SERVED, solo el Administrador puede cancelarlo
+      if (order.status === 'READY' || order.status === 'SERVED') {
+        if (!req.user.roles.includes('ADMINISTRADOR')) {
+          throw new Error('ADMIN_REQUIRED');
+        }
+      }
+
+      // 4. Soft-delete del ítem de comanda
+      await tx.orderItem.update({
+        where: { id: itemId },
+        data: { deletedAt: new Date() }
+      });
+
+      // 5. Restar valor del total de la comanda
+      const costToDeduct = orderItem.price * orderItem.quantity;
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          total: { decrement: costToDeduct }
+        },
+        include: {
+          table: true,
+          waiter: {
+            select: { id: true, firstName: true, lastName: true }
+          },
+          orderItems: {
+            where: { deletedAt: null },
+            include: { item: true }
+          }
+        }
+      });
+
+      // 6. Escribir registro en AuditLog
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'CANCELAR_ITEM_PEDIDO',
+          description: `Se canceló el ítem ${orderItem.item.name} (Cant: ${orderItem.quantity}) de la comanda ID ${orderId}. Motivo: ${sanitizedReason}`,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']
+        }
+      });
+
+      return updatedOrder;
+    });
+
+    logger.info(`Se canceló ítem ID ${itemId} del pedido ID ${orderId} por usuario ID ${req.user.id}`);
+
+    return res.status(200).json({
+      status: 'success',
+      order: result
+    });
+  } catch (error) {
+    if (error.message === 'ORDER_NOT_FOUND') {
+      return res.status(404).json({
+        status: 'error',
+        statusCode: 404,
+        message: 'Pedido no encontrado.'
+      });
+    }
+    if (error.message === 'ORDER_FINALIZED') {
+      return res.status(400).json({
+        status: 'error',
+        statusCode: 400,
+        message: 'No se pueden cancelar ítems de un pedido que ya ha sido pagado o cancelado.'
+      });
+    }
+    if (error.message === 'ORDER_ITEM_NOT_FOUND') {
+      return res.status(404).json({
+        status: 'error',
+        statusCode: 404,
+        message: 'El ítem especificado no pertenece a este pedido o ya fue eliminado.'
+      });
+    }
+    if (error.message === 'ADMIN_REQUIRED') {
+      return res.status(403).json({
+        status: 'error',
+        statusCode: 403,
+        message: 'Acceso denegado. Se requiere rol de Administrador para cancelar platos que ya están listos o servidos.'
+      });
+    }
+
+    logger.error('Error al cancelar ítem de comanda:', error);
+    next(error);
+  }
+}
+
 module.exports = {
   getAllOrders,
   getOrderById,
   createOrder,
   appendItemsToOrder,
   updateOrderStatus,
-  getKitchenOrders
+  getKitchenOrders,
+  requestOrderPreBill,
+  cancelOrderItem
 };

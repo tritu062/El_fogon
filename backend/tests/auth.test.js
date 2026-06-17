@@ -223,7 +223,7 @@ describe('Suite de Pruebas: Autenticación y Autorización (Fase 4)', () => {
     });
 
     it('debería denegar acceso y revocar sesiones (403) si el token reutilizado supera el tiempo de gracia', async () => {
-      const expiredRefreshToken = jwt.sign({ userId: 1 }, envConfig.JWT_REFRESH_SECRET);
+      const expiredRefreshToken = jwt.sign({ userId: 99 }, envConfig.JWT_REFRESH_SECRET);
       
       vi.spyOn(prisma.refreshToken, 'findUnique').mockResolvedValue(null); // No está en la BD
       const deleteManySpy = vi.spyOn(prisma.refreshToken, 'deleteMany').mockResolvedValue({});
@@ -238,7 +238,7 @@ describe('Suite de Pruebas: Autenticación y Autorización (Fase 4)', () => {
       expect(res.status).toBe(403);
       expect(res.body.message).toContain('Sesión inválida por posible compromiso de seguridad');
       expect(deleteManySpy).toHaveBeenCalledWith({
-        where: { userId: 1 }
+        where: { userId: 99 }
       });
     });
   });

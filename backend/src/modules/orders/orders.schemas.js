@@ -14,6 +14,9 @@ const orderItemInputSchema = z.object({
 
 const createOrderSchema = z.object({
   tableId: z.number().int().positive().optional().nullable(),
+  orderType: z.enum(['PRESENCIAL', 'PARA_LLEVAR', 'DOMICILIO'], {
+    invalid_type_error: 'El tipo de pedido debe ser uno de: PRESENCIAL, PARA_LLEVAR, DOMICILIO.'
+  }).optional().default('PRESENCIAL'),
   items: z.array(orderItemInputSchema, {
     required_error: 'Debe agregar al menos un plato/bebida al pedido.'
   }).min(1, 'El pedido debe contener al menos un plato o bebida.')
@@ -26,9 +29,9 @@ const appendItemsSchema = z.object({
 });
 
 const updateOrderStatusSchema = z.object({
-  status: z.enum(['PENDING', 'READY', 'PAID', 'CANCELLED'], {
+  status: z.enum(['PENDING', 'PREPARING', 'READY', 'SERVED', 'PAID', 'CANCELLED'], {
     required_error: 'El estado del pedido es obligatorio.',
-    invalid_type_error: 'El estado del pedido debe ser uno de: PENDING, READY, PAID, CANCELLED.'
+    invalid_type_error: 'El estado del pedido debe ser uno de: PENDING, PREPARING, READY, SERVED, PAID, CANCELLED.'
   })
 });
 

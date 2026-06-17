@@ -171,19 +171,30 @@ model Item {
   @@map("items")
 }
 
+// Tipo de pedido (presencial, para llevar, o a domicilio)
+enum OrderType {
+  PRESENCIAL
+  PARA_LLEVAR
+  DOMICILIO
+}
+
 // Estados del pedido
 enum OrderStatus {
   PENDING
+  PREPARING
   READY
+  SERVED
   PAID
   CANCELLED
 }
 
 // Modelo de Pedido / Comanda
 model Order {
-  id        Int         @id @default(autoincrement())
-  status    OrderStatus @default(PENDING)
-  tableId   Int?        @map("table_id") // Nullable para "Para llevar" / "Delivery"
+  id              Int         @id @default(autoincrement())
+  status          OrderStatus @default(PENDING)
+  orderType       OrderType   @default(PRESENCIAL) @map("order_type")
+  isBillRequested Boolean     @default(false) @map("is_bill_requested")
+  tableId         Int?        @map("table_id") // Nullable para "Para llevar" / "Delivery"
   waiterId  Int         @map("waiter_id") // Mesero que registró el pedido
   total     Int         @default(0)       // En centavos
   createdAt DateTime    @default(now())   @map("created_at")

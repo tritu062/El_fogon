@@ -5,7 +5,9 @@ const {
   createOrder,
   appendItemsToOrder,
   updateOrderStatus,
-  getKitchenOrders
+  getKitchenOrders,
+  requestOrderPreBill,
+  cancelOrderItem
 } = require('./orders.controller');
 const authenticate = require('../../middlewares/authenticate');
 const authorize = require('../../middlewares/authorize');
@@ -25,5 +27,11 @@ router.patch('/:id/items', authenticate, authorize(['MESERO', 'ADMINISTRADOR']),
 
 // Cambio de estado de comanda (Control de acceso interno por estado en el controlador)
 router.patch('/:id/status', authenticate, updateOrderStatus);
+
+// Solicitar pre-cuenta (Meseros y Administradores)
+router.patch('/:id/pre-bill', authenticate, authorize(['MESERO', 'ADMINISTRADOR']), requestOrderPreBill);
+
+// Cancelar un ítem individual con motivo (Meseros y Administradores)
+router.delete('/:orderId/items/:itemId', authenticate, authorize(['MESERO', 'ADMINISTRADOR']), cancelOrderItem);
 
 module.exports = router;

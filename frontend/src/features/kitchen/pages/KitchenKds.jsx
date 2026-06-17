@@ -53,16 +53,16 @@ function OrderTimer({ createdAt }) {
 }
 
 export default function KitchenKds() {
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const { 
     pendingOrders, 
     readyOrders, 
     loading, 
     error, 
     refresh, 
+    startPreparation,
     dispatchOrder 
-  } = useKitchenOrders();
-
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  } = useKitchenOrders({ soundEnabled });
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Actualizar el reloj local
@@ -77,6 +77,13 @@ export default function KitchenKds() {
     const res = await dispatchOrder(orderId);
     if (!res.success) {
       alert(`Error al despachar: ${res.error}`);
+    }
+  };
+
+  const handleStartPrep = async (orderId) => {
+    const res = await startPreparation(orderId);
+    if (!res.success) {
+      alert(`Error al iniciar preparación: ${res.error}`);
     }
   };
 
@@ -192,13 +199,22 @@ export default function KitchenKds() {
                     {/* Header de la tarjeta */}
                     <div className="p-4 border-b border-slate-850 flex justify-between items-start gap-2 bg-slate-950/20">
                       <div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-sm font-extrabold text-white">
                             {order.table ? `Mesa ${order.table.number}` : 'Para Llevar'}
                           </span>
                           <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">
                             #{order.id}
                           </span>
+                          {order.status === 'PREPARING' ? (
+                            <span className="text-[9px] font-black uppercase tracking-wider text-orange-400 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded">
+                              Preparando 🔥
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-black uppercase tracking-wider text-yellow-500 bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded">
+                              En Cola ⏳
+                            </span>
+                          )}
                         </div>
                         <span className="text-[10px] text-slate-500 mt-0.5 block font-medium">
                           Mesero: {order.waiter?.firstName} {order.waiter?.lastName}
@@ -243,17 +259,27 @@ export default function KitchenKds() {
 
                     {/* Footer / Acción de despacho */}
                     <div className="p-4 border-t border-slate-850/80 bg-slate-950/10">
-                      <button
-                        onClick={() => handleDispatch(order.id)}
-                        className={`w-full py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md ${
-                          isCritical
-                            ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-500/10'
-                            : 'bg-brand-500 hover:bg-brand-600 text-white shadow-brand-500/10'
-                        }`}
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        <span>Despachar Comanda</span>
-                      </button>
+                      {order.status === 'PENDING' ? (
+                        <button
+                          onClick={() => handleStartPrep(order.id)}
+                          className="w-full py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/10"
+                        >
+                          <ChefHat className="w-4 h-4" />
+                          <span>Empezar Preparación</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleDispatch(order.id)}
+                          className={`w-full py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md ${
+                            isCritical
+                              ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-500/10'
+                              : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/10'
+                          }`}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Despachar Comanda</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

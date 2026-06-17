@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ordersService } from '../services/ordersService';
 
-export function useKitchenOrders() {
+export function useKitchenOrders({ soundEnabled = true } = {}) {
   const [pendingOrders, setPendingOrders] = useState([]);
   const [readyOrders, setReadyOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +40,7 @@ export function useKitchenOrders() {
       // Reproducir sonido si aumenta el número de comandas pendientes (nuevos pedidos)
       // y no es la primera carga para evitar sonar al abrir la pantalla
       if (!isFirstLoadRef.current) {
-        if (data.pending.length > prevPendingCountRef.current) {
+        if (data.pending.length > prevPendingCountRef.current && soundEnabled) {
           playBeep();
         }
       } else {
@@ -66,6 +66,17 @@ export function useKitchenOrders() {
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
+  const startPreparation = async (orderId) => {
+    try {
+      await ordersService.updateOrderStatus(orderId, 'PREPARING');
+      await fetchOrders();
+      return { success: true };
+    } catch (err) {
+      console.error(`Error starting preparation for order ${orderId}:`, err);
+      return { success: false, error: err.message };
+    }
+  };
+
   const dispatchOrder = async (orderId) => {
     try {
       await ordersService.updateOrderStatus(orderId, 'READY');
@@ -84,6 +95,7 @@ export function useKitchenOrders() {
     loading,
     error,
     refresh: fetchOrders,
+    startPreparation,
     dispatchOrder
   };
 }

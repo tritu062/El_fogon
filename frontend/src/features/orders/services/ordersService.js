@@ -71,5 +71,21 @@ export const ordersService = {
       pending: response.data.pending,
       ready: response.data.ready
     };
+  },
+
+  /**
+   * Solicita la pre-cuenta (cobro) de un pedido.
+   */
+  async requestPreBill(id) {
+    const response = await api.patch(`/orders/${id}/pre-bill`);
+    return response.data.order;
+  },
+
+  /**
+   * Cancela un ítem individual de una comanda activa.
+   */
+  async cancelOrderItem(orderId, itemId, reason) {
+    const response = await api.delete(`/orders/${orderId}/items/${itemId}`, { data: { reason } });
+    return response.data.order;
   }
 };

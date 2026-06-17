@@ -15,7 +15,8 @@ import {
   Grid, 
   ChefHat, 
   Info, 
-  ArrowLeft 
+  ArrowLeft,
+  X
 } from 'lucide-react';
 
 export default function OrderTaking() {
@@ -41,6 +42,7 @@ export default function OrderTaking() {
   const [items, setItems] = useState([]);
   const [tables, setTables] = useState([]);
   const [selectedTableId, setSelectedTableId] = useState(queryTableId ? parseInt(queryTableId, 10) : '');
+  const [orderType, setOrderType] = useState('PRESENCIAL');
   const [activeTabCategory, setActiveTabCategory] = useState('ALL');
   
   // Estado para la lógica de adición a comanda activa
@@ -117,6 +119,15 @@ export default function OrderTaking() {
     checkActiveOrders();
   }, [selectedTableId, tables]);
 
+  // Sincronizar orderType con la selección de mesa
+  useEffect(() => {
+    if (selectedTableId) {
+      setOrderType('PRESENCIAL');
+    } else {
+      setOrderType(prev => (prev === 'PRESENCIAL' ? 'PARA_LLEVAR' : prev));
+    }
+  }, [selectedTableId]);
+
   // Manejar click en un plato
   const handleItemClick = (item) => {
     setSelectedItemForModal(item);
@@ -170,6 +181,7 @@ export default function OrderTaking() {
         // Modo Creación
         await ordersService.createOrder({
           tableId: selectedTableId ? parseInt(selectedTableId, 10) : null,
+          orderType,
           items: formattedItems
         });
       }
@@ -242,7 +254,7 @@ export default function OrderTaking() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Seleccione Mesa Física
@@ -261,9 +273,29 @@ export default function OrderTaking() {
               </select>
             </div>
 
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Tipo de Pedido
+              </label>
+              {selectedTableId ? (
+                <div className="w-full bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-350 px-4 py-2.5 rounded-xl text-sm font-bold border border-slate-200 dark:border-slate-800 flex items-center gap-1.5">
+                  🍽️ Presencial
+                </div>
+              ) : (
+                <select
+                  value={orderType}
+                  onChange={(e) => setOrderType(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-350 px-4 py-2.5 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-orange-500/20 focus:outline-none"
+                >
+                  <option value="PARA_LLEVAR">🛍️ Para Llevar</option>
+                  <option value="DOMICILIO">🛵 Domicilio</option>
+                </select>
+              )}
+            </div>
+
             {/* Selector de comanda activa si la mesa seleccionada está ocupada */}
             {activeOrdersOnTable.length > 0 && (
-              <div>
+              <div className="sm:col-span-2 md:col-span-1">
                 <label className="block text-xs font-bold text-red-500 dark:text-red-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                   ⚠️ Mesa Ocupada: Adicionar a
                 </label>

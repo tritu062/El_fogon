@@ -19,15 +19,33 @@ export default function PendingBillsList({ refreshRegister }) {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
+  // EXPLICACIÓN DIDÁCTICA:
+  // El cajero necesita visualizar todas las comanda activas que no han sido saldadas o anuladas.
+  // 1. Obtenemos la lista general mediante ordersService.
+  // 2. Filtramos descartando los estados finales: 'PAID' (pagado) y 'CANCELLED' (cancelado).
+  //    De esta forma capturamos pedidos en 'PENDING', 'PREPARING', 'READY' y 'SERVED'.
+  // 3. ORDENAMIENTO DE PRIORIDAD:
+  //    - Los pedidos que tienen 'isBillRequested: true' (el mesero solicitó pre-cuenta)
+  //      deben aparecer de primeros (prioritarios) en la lista para agilizar el cobro.
+  //    - Las comandas restantes se ordenan de forma ascendente por su fecha de creación (FIFO).
   const fetchPendingOrders = async () => {
     setLoading(true);
     setError(null);
     try {
       // Obtener todos los pedidos
       const allOrders = await ordersService.getOrders();
-      // Filtrar por estados PENDING y READY (los activos por cobrar)
-      const pendingOrReady = allOrders.filter(o => o.status === 'PENDING' || o.status === 'READY');
-      setOrders(pendingOrReady);
+      // Filtrar por estados que no sean finalizados (PAID, CANCELLED)
+      const activeOrders = allOrders.filter(o => o.status !== 'PAID' && o.status !== 'CANCELLED');
+      
+      // Ordenar: primero los que tienen pre-cuenta solicitada (isBillRequested === true)
+      // Luego por fecha de creación (de más antiguo a más nuevo - FIFO)
+      const sorted = activeOrders.sort((a, b) => {
+        if (a.isBillRequested && !b.isBillRequested) return -1;
+        if (!a.isBillRequested && b.isBillRequested) return 1;
+        return new Date(a.createdAt) - new Date(b.createdAt);
+      });
+      
+      setOrders(sorted);
     } catch (err) {
       console.error('Error fetching orders for cashier:', err);
       setError('No se pudieron cargar las cuentas activas.');
@@ -97,7 +115,11 @@ export default function PendingBillsList({ refreshRegister }) {
             return (
               <div 
                 key={order.id} 
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                className={`bg-white dark:bg-slate-900 border ${
+                  order.isBillRequested 
+                    ? 'border-red-500 dark:border-red-500/60 shadow-md shadow-red-500/5 ring-1 ring-red-500/20' 
+                    : 'border-slate-200 dark:border-slate-800/80 shadow-sm'
+                } rounded-2xl p-5 hover:shadow-md transition-all flex flex-col justify-between`}
               >
                 {/* Header de la Tarjeta */}
                 <div>
@@ -111,14 +133,31 @@ export default function PendingBillsList({ refreshRegister }) {
                       </span>
                     </div>
 
-                    <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
-                      order.status === 'READY'
-                        ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20'
-                        : 'text-amber-500 bg-amber-500/10 border-amber-500/20'
-                    }`}>
-                      {order.status === 'READY' ? 'Listo' : 'Pendiente'}
-                    </span>
-                  </div>
+                    <div className="flex flex-col items-end gap-1.5">
+                      {order.isBillRequested && (
+                        <span className="text-[9px] font-extrabold tracking-wider px-2 py-0.5 rounded-full border text-red-500 bg-red-500/10 border-red-500/20 animate-pulse flex items-center gap-1">
+                          🔔 Pre-cuenta
+                        </span>
+                      )}
+                      <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
+                        order.status === 'READY'
+                          ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20'
+                          : order.status === 'SERVED'
+                          ? 'text-blue-500 bg-blue-500/10 border-blue-500/20'
+                          : order.status === 'PREPARING'
+                          ? 'text-orange-500 bg-orange-500/10 border-orange-500/20'
+                          : 'text-amber-500 bg-amber-500/10 border-amber-500/20'
+                      }`}>
+                        {order.status === 'READY' 
+                          ? 'Listo' 
+                          : order.status === 'SERVED' 
+                          ? 'Servido' 
+                          : order.status === 'PREPARING' 
+                          ? 'Preparando' 
+                          : 'Pendiente'}
+                      </span>
+                    </div>
+                  </div>div>
 
                   {/* Resumen de items del pedido */}
                   <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-850/50 rounded-xl p-3 mb-4 max-h-40 overflow-y-auto">

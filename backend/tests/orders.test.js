@@ -80,7 +80,8 @@ describe('Suite de Pruebas: Gestión de Pedidos (Fase 7)', () => {
         status: 'PENDING',
         tableId: 5,
         waiterId: 2,
-        total: 1300
+        total: 1300,
+        table: { id: 5, number: 5, status: 'OCCUPIED' }
       };
 
       vi.spyOn(prisma.order, 'create').mockResolvedValue(mockOrder);
@@ -106,7 +107,7 @@ describe('Suite de Pruebas: Gestión de Pedidos (Fase 7)', () => {
 
     it('debería rebotar si un plato solicitado no está disponible (isAvailable: false)', async () => {
       vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockWaiter);
-      vi.spyOn(prisma.table, 'findFirst').mockResolvedValue({ id: 5, number: 5 });
+      vi.spyOn(prisma.table, 'findFirst').mockResolvedValue({ id: 5, number: 5, status: 'FREE' });
       vi.spyOn(prisma.item, 'findFirst').mockResolvedValue({ id: 1, name: 'Sopa', price: 650, isAvailable: false });
 
       const res = await request(app)
@@ -306,4 +307,242 @@ describe('Suite de Pruebas: Gestión de Pedidos (Fase 7)', () => {
       expect(findManySpy).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('Pruebas Adicionales: Mesero', () => {
+    describe('POST /api/orders - Prevención de Doble Ocupación y Tipo de Pedido', () => {
+      it('debería rebotar con TABLE_ALREADY_OCCUPIED si la mesa seleccionada no está libre', async () => {
+        vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockWaiter);
+        vi.spyOn(prisma.table, 'findFirst').mockResolvedValue({ id: 5, number: 5, status: 'OCCUPIED' });
+
+        const res = await request(app)
+          .post('/api/orders')
+          .send({
+            tableId: 5,
+            items: [{ itemId: 1, quantity: 1 }]
+          })
+          .set('Authorization', `Bearer ${waiterToken}`)
+          .set('x-skip-rate-limit', 'true');
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toContain('ya está ocupada');
+      });
+
+      it('debería permitir crear un pedido para llevar sin mesa física', async () => {
+        vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockWaiter);
+        vi.spyOn(prisma.item, 'findFirst').mockResolvedValue({ id: 1, name: 'Sopa', price: 650, isAvailable: true });
+        
+        const mockOrder = {
+          id: 13,
+          status: 'PENDING',
+          orderType: 'PARA_LLEVAR',
+          tableId: null,
+          waiterId: 2,
+          total: 650
+        };
+        vi.spyOn(prisma.order, 'create').mockResolvedValue(mockOrder);
+
+        const res = await request(app)
+          .post('/api/orders')
+          .send({
+            orderType: 'PARA_LLEVAR',
+            items: [{ itemId: 1, quantity: 1 }]
+          })
+          .set('Authorization', `Bearer ${waiterToken}`)
+          .set('x-skip-rate-limit', 'true');
+
+        expect(res.status).toBe(201);
+        expect(res.body.status).toBe('success');
+        expect(res.body.order.orderType).toBe('PARA_LLEVAR');
+        expect(res.body.order.tableId).toBeNull();
+      });
+    });
+
+    describe('PATCH /api/orders/:id/status - Transición a SERVED', () => {
+      it('debería permitir a un MESERO marcar el pedido como SERVED', async () => {
+        vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockWaiter);
+        vi.spyOn(prisma.order, 'findFirst').mockResolvedValue({ id: 12, status: 'READY', tableId: 5 });
+        vi.spyOn(prisma.order, 'update').mockResolvedValue({ id: 12, status: 'SERVED' });
+
+        const res = await request(app)
+          .patch('/api/orders/12/status')
+          .send({ status: 'SERVED' })
+          .set('Authorization', `Bearer ${waiterToken}`)
+          .set('x-skip-rate-limit', 'true');
+
+        expect(res.status).toBe(200);
+        expect(res.body.order.status).toBe('SERVED');
+      });
+
+      it('debería denegar el cambio a SERVED si el usuario es un COCINERO', async () => {
+        vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockCook);
+
+        const res = await request(app)
+          .patch('/api/orders/12/status')
+          .send({ status: 'SERVED' })
+          .set('Authorization', `Bearer ${cookToken}`)
+          .set('x-skip-rate-limit', 'true');
+
+        expect(res.status).toBe(403);
+      });
+    });
+
+    describe('PATCH /api/orders/:id/pre-bill - Solicitar pre-cuenta', () => {
+      it('debería permitir a un MESERO o ADMINISTRADOR solicitar la pre-cuenta', async () => {
+        vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockWaiter);
+        vi.spyOn(prisma.order, 'findFirst').mockResolvedValue({ id: 12, status: 'SERVED', tableId: 5, isBillRequested: false });
+        vi.spyOn(prisma.order, 'update').mockResolvedValue({ id: 12, status: 'SERVED', tableId: 5, isBillRequested: true, table: { number: 5 } });
+
+        const res = await request(app)
+          .patch('/api/orders/12/pre-bill')
+          .set('Authorization', `Bearer ${waiterToken}`)
+          .set('x-skip-rate-limit', 'true');
+
+        expect(res.status).toBe(200);
+        expect(res.body.order.isBillRequested).toBe(true);
+      });
+
+      it('debería rebotar si el pedido ya está pagado', async () => {
+        vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockWaiter);
+        vi.spyOn(prisma.order, 'findFirst').mockResolvedValue({ id: 12, status: 'PAID', tableId: 5 });
+
+        const res = await request(app)
+          .patch('/api/orders/12/pre-bill')
+          .set('Authorization', `Bearer ${waiterToken}`)
+          .set('x-skip-rate-limit', 'true');
+
+        expect(res.status).toBe(400);
+      });
+    });
+
+    describe('DELETE /api/orders/:orderId/items/:itemId - Cancelar un ítem de la comanda con motivo', () => {
+      it('debería permitir a un MESERO cancelar un ítem de comanda PENDING y deducir el total', async () => {
+        vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockWaiter);
+        
+        // Mock del flujo de transacciones
+        const orderMock = { id: 12, status: 'PENDING', total: 1000 };
+        const orderItemMock = { id: 2, orderId: 12, price: 300, quantity: 2, item: { name: 'Jugo' } };
+        
+        vi.spyOn(prisma.order, 'findFirst').mockResolvedValue(orderMock);
+        vi.spyOn(prisma.orderItem, 'findFirst').mockResolvedValue(orderItemMock);
+        
+        vi.spyOn(prisma.orderItem, 'update').mockResolvedValue({ id: 2, deletedAt: new Date() });
+        
+        // El total final disminuye en (300 * 2) = 600
+        const updatedOrderMock = { id: 12, status: 'PENDING', total: 400 };
+        vi.spyOn(prisma.order, 'update').mockResolvedValue(updatedOrderMock);
+
+        const res = await request(app)
+          .delete('/api/orders/12/items/2')
+          .send({ reason: 'Cliente cambió de opinión' })
+          .set('Authorization', `Bearer ${waiterToken}`)
+          .set('x-skip-rate-limit', 'true');
+
+        expect(res.status).toBe(200);
+        expect(res.body.order.total).toBe(400);
+      });
+
+      it('debería rechazar si no se especifica motivo o si este es muy corto', async () => {
+        vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockWaiter);
+
+        const res = await request(app)
+          .delete('/api/orders/12/items/2')
+          .send({ reason: 'No' })
+          .set('Authorization', `Bearer ${waiterToken}`)
+          .set('x-skip-rate-limit', 'true');
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toContain('motivo válido');
+      });
+
+      it('debería denegar la cancelación si el plato ya está READY o SERVED y el usuario es MESERO (requiere ADMINISTRADOR)', async () => {
+        vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockWaiter);
+        
+        const orderMock = { id: 12, status: 'READY', total: 1000 };
+        const orderItemMock = { id: 2, orderId: 12, price: 300, quantity: 2, item: { name: 'Jugo' } };
+        vi.spyOn(prisma.order, 'findFirst').mockResolvedValue(orderMock);
+        vi.spyOn(prisma.orderItem, 'findFirst').mockResolvedValue(orderItemMock);
+
+        const res = await request(app)
+          .delete('/api/orders/12/items/2')
+          .send({ reason: 'Demora excesiva' })
+          .set('Authorization', `Bearer ${waiterToken}`)
+          .set('x-skip-rate-limit', 'true');
+
+        expect(res.status).toBe(403);
+        expect(res.body.message).toContain('Se requiere rol de Administrador');
+      });
+
+      it('debería permitir la cancelación si el plato ya está READY o SERVED y el usuario es ADMINISTRADOR', async () => {
+        vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockAdmin);
+        
+        const orderMock = { id: 12, status: 'READY', total: 1000 };
+        const orderItemMock = { id: 2, orderId: 12, price: 300, quantity: 2, item: { name: 'Jugo' } };
+        
+        vi.spyOn(prisma.order, 'findFirst').mockResolvedValue(orderMock);
+        vi.spyOn(prisma.orderItem, 'findFirst').mockResolvedValue(orderItemMock);
+        vi.spyOn(prisma.orderItem, 'update').mockResolvedValue({ id: 2, deletedAt: new Date() });
+        
+        const updatedOrderMock = { id: 12, status: 'READY', total: 400 };
+        vi.spyOn(prisma.order, 'update').mockResolvedValue(updatedOrderMock);
+
+        const res = await request(app)
+          .delete('/api/orders/12/items/2')
+          .send({ reason: 'Mesa se retiró' })
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('x-skip-rate-limit', 'true');
+
+        expect(res.status).toBe(200);
+        expect(res.body.order.total).toBe(400);
+      });
+    });
+  });
+
+  describe('Pruebas de Cocina KDS (Fase 3)', () => {
+    it('debería consultar pedidos PENDING y PREPARING en KDS', async () => {
+      vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockCook);
+      const findManySpy = vi.spyOn(prisma.order, 'findMany').mockResolvedValue([]);
+
+      await request(app)
+        .get('/api/orders/kitchen')
+        .set('Authorization', `Bearer ${cookToken}`)
+        .set('x-skip-rate-limit', 'true');
+
+      expect(findManySpy).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ['PENDING', 'PREPARING'] }
+        })
+      }));
+    });
+
+    it('debería permitir a un COCINERO transicionar un pedido de PENDING a PREPARING', async () => {
+      vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockCook);
+      vi.spyOn(prisma.order, 'findFirst').mockResolvedValue({ id: 12, status: 'PENDING', tableId: 5 });
+      vi.spyOn(prisma.order, 'update').mockResolvedValue({ id: 12, status: 'PREPARING' });
+
+      const res = await request(app)
+        .patch('/api/orders/12/status')
+        .send({ status: 'PREPARING' })
+        .set('Authorization', `Bearer ${cookToken}`)
+        .set('x-skip-rate-limit', 'true');
+
+      expect(res.status).toBe(200);
+      expect(res.body.order.status).toBe('PREPARING');
+    });
+
+    it('debería permitir a un COCINERO transicionar un pedido de PREPARING a READY', async () => {
+      vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockCook);
+      vi.spyOn(prisma.order, 'findFirst').mockResolvedValue({ id: 12, status: 'PREPARING', tableId: 5 });
+      vi.spyOn(prisma.order, 'update').mockResolvedValue({ id: 12, status: 'READY' });
+
+      const res = await request(app)
+        .patch('/api/orders/12/status')
+        .send({ status: 'READY' })
+        .set('Authorization', `Bearer ${cookToken}`)
+        .set('x-skip-rate-limit', 'true');
+
+      expect(res.status).toBe(200);
+      expect(res.body.order.status).toBe('READY');
+    });
+  });
 });
+
