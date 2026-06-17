@@ -176,4 +176,70 @@ describe('Suite de Pruebas: Autenticación y Autorización (Fase 4)', () => {
       expect(res.body.message).toContain('La contraseña no cumple con la política de seguridad');
     });
   });
+
+  describe('POST /api/auth/refresh - Ventana de Gracia Concurrente', () => {
+    const activeRefreshToken = jwt.sign({ userId: 1 }, envConfig.JWT_REFRESH_SECRET);
+    
+    it('debería tolerar un refresco duplicado dentro de la ventana de gracia de 15 segundos', async () => {
+      vi.spyOn(prisma.user, 'findFirst').mockResolvedValue({
+        id: 1,
+        email: 'admin@elfogon.com',
+        isActive: true
+      });
+
+      // 1. Primer refresco exitoso
+      vi.spyOn(prisma.refreshToken, 'findUnique').mockResolvedValue({
+        id: 10,
+        token: activeRefreshToken,
+        userId: 1,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      });
+      vi.spyOn(prisma.refreshToken, 'delete').mockResolvedValue({});
+      vi.spyOn(prisma.refreshToken, 'create').mockResolvedValue({ id: 11, token: 'NEW_REFRESH_TOKEN' });
+
+      const res1 = await request(app)
+        .post('/api/auth/refresh')
+        .set('Cookie', `refreshToken=${activeRefreshToken}`)
+        .set('x-skip-rate-limit', 'true');
+
+      expect(res1.status).toBe(200);
+      const token1 = res1.body.accessToken;
+
+      // 2. Segundo refresco concurrente simulado (utiliza el mismo token anterior)
+      // Como ya se borró de la BD, findUnique devolverá null
+      vi.spyOn(prisma.refreshToken, 'findUnique').mockResolvedValue(null);
+      const deleteManySpy = vi.spyOn(prisma.refreshToken, 'deleteMany').mockResolvedValue({});
+
+      const res2 = await request(app)
+        .post('/api/auth/refresh')
+        .set('Cookie', `refreshToken=${activeRefreshToken}`)
+        .set('x-skip-rate-limit', 'true');
+
+      // Debería ser exitoso (200) y retornar el mismo accessToken gracias al caché de gracia en memoria,
+      // sin gatillar el borrado de sesiones de contención (deleteMany)
+      expect(res2.status).toBe(200);
+      expect(res2.body.accessToken).toBe(token1);
+      expect(deleteManySpy).not.toHaveBeenCalled();
+    });
+
+    it('debería denegar acceso y revocar sesiones (403) si el token reutilizado supera el tiempo de gracia', async () => {
+      const expiredRefreshToken = jwt.sign({ userId: 1 }, envConfig.JWT_REFRESH_SECRET);
+      
+      vi.spyOn(prisma.refreshToken, 'findUnique').mockResolvedValue(null); // No está en la BD
+      const deleteManySpy = vi.spyOn(prisma.refreshToken, 'deleteMany').mockResolvedValue({});
+
+      // Llamada directa sin haberla registrado antes en rotatedTokensCache,
+      // por lo que se asume que supera cualquier ventana de gracia o es un ataque real
+      const res = await request(app)
+        .post('/api/auth/refresh')
+        .set('Cookie', `refreshToken=${expiredRefreshToken}`)
+        .set('x-skip-rate-limit', 'true');
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toContain('Sesión inválida por posible compromiso de seguridad');
+      expect(deleteManySpy).toHaveBeenCalledWith({
+        where: { userId: 1 }
+      });
+    });
+  });
 });

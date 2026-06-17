@@ -316,6 +316,23 @@ async function deleteTable(req, res, next) {
       });
     }
 
+    // Verificar si tiene comandas activas (PENDING o READY)
+    const activeOrdersCount = await prisma.order.count({
+      where: {
+        tableId: id,
+        status: { in: ['PENDING', 'READY'] },
+        deletedAt: null
+      }
+    });
+
+    if (activeOrdersCount > 0) {
+      return res.status(400).json({
+        status: 'error',
+        statusCode: 400,
+        message: 'No se puede eliminar la mesa porque tiene comandas activas pendientes.'
+      });
+    }
+
     // Marcar como eliminada
     const deletedTable = await prisma.table.update({
       where: { id },

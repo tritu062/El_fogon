@@ -4,9 +4,10 @@ const { prisma } = require('../../config/db');
 const envConfig = require('../../config/env');
 const logger = require('../../config/logger');
 
-// Regex para política de contraseñas robusta:
-// Mínimo 8 caracteres, al menos 1 mayúscula, 1 minúscula, 1 número y 1 carácter especial
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&._\-#+])[A-Za-z\d@$!%*?&._\-#+]{8,}$/;
+
+// Caché en memoria para manejar períodos de gracia en la rotación de Refresh Tokens concurrentes
+const rotatedTokensCache = new Map();
 
 /**
  * Endpoint POST /auth/register
@@ -359,6 +360,26 @@ async function refresh(req, res, next) {
     // Si el JWT es válido pero no está en la base de datos, significa que ya fue rotado
     // y alguien está intentando usar un token antiguo (robo de sesión).
     if (!dbToken) {
+      // PERO, antes de revocar todo, verificamos si está en la ventana de gracia
+      if (rotatedTokensCache.has(token)) {
+        const cached = rotatedTokensCache.get(token);
+        if (Date.now() - cached.rotatedAt < 15000) { // 15 segundos
+          logger.info(`🔄 Refresco duplicado tolerado (ventana de gracia) para usuario ID: ${cached.userId}`);
+          
+          res.cookie('refreshToken', cached.refreshToken, {
+            httpOnly: true,
+            secure: envConfig.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000
+          });
+
+          return res.status(200).json({
+            status: 'success',
+            accessToken: cached.accessToken
+          });
+        }
+      }
+
       logger.error(`🚨 ¡Detección de Reutilización de Refresh Token! Usuario ID: ${decoded.userId}`);
       
       // Medida de contención inmediata: Revocamos TODOS los refresh tokens activos del usuario
@@ -377,6 +398,13 @@ async function refresh(req, res, next) {
         statusCode: 403,
         message: 'Sesión inválida por posible compromiso de seguridad. Debe iniciar sesión nuevamente.'
       });
+    }
+
+    // Limpieza de caché de gracia obsoleta (> 30s)
+    for (const [key, value] of rotatedTokensCache.entries()) {
+      if (Date.now() - value.rotatedAt > 30000) {
+        rotatedTokensCache.delete(key);
+      }
     }
 
     // 3. Comprobar si el usuario sigue activo
@@ -417,6 +445,14 @@ async function refresh(req, res, next) {
         userId: user.id,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       }
+    });
+
+    // Registrar en caché de gracia temporal el token viejo con el nuevo resultado
+    rotatedTokensCache.set(token, {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      userId: user.id,
+      rotatedAt: Date.now()
     });
 
     // 7. Enviar la cookie con el nuevo Refresh Token

@@ -156,9 +156,10 @@ describe('Suite de Pruebas: Gestión de Mesas (Fase 6)', () => {
   });
 
   describe('DELETE /api/tables/:id - Eliminar Mesa', () => {
-    it('debería permitir soft-delete si el rol es ADMINISTRADOR', async () => {
+    it('debería permitir soft-delete si el rol es ADMINISTRADOR y no tiene comandas activas', async () => {
       vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockAdmin);
       vi.spyOn(prisma.table, 'findFirst').mockResolvedValue({ id: 3, number: 5, status: 'FREE' });
+      vi.spyOn(prisma.order, 'count').mockResolvedValue(0);
       vi.spyOn(prisma.table, 'update').mockResolvedValue({ id: 3, number: 5, deletedAt: new Date() });
 
       const res = await request(app)
@@ -169,6 +170,20 @@ describe('Suite de Pruebas: Gestión de Mesas (Fase 6)', () => {
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('success');
       expect(res.body.message).toContain('eliminada correctamente');
+    });
+
+    it('debería rechazar soft-delete (400) si la mesa tiene comandas activas asociadas', async () => {
+      vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockAdmin);
+      vi.spyOn(prisma.table, 'findFirst').mockResolvedValue({ id: 3, number: 5, status: 'OCCUPIED' });
+      vi.spyOn(prisma.order, 'count').mockResolvedValue(1);
+
+      const res = await request(app)
+        .delete('/api/tables/3')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('x-skip-rate-limit', 'true');
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('No se puede eliminar la mesa porque tiene comandas activas');
     });
   });
 });

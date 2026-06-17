@@ -18,6 +18,9 @@ const orderRoutes = require('./modules/orders/orders.routes');
 
 const app = express();
 
+// Habilitar trust proxy para rate limiting e IPs de auditoría correctas en entornos con proxy inverso
+app.set('trust proxy', 1);
+
 // 1. Configuración de Seguridad y CORS
 app.use(cors({
   origin: envConfig.FRONTEND_URL,

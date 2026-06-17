@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { escapeHtml } = require('../../utils/sanitize');
 
 const orderItemInputSchema = z.object({
   itemId: z.number({
@@ -7,7 +8,7 @@ const orderItemInputSchema = z.object({
   quantity: z.number({
     required_error: 'La cantidad es obligatoria.'
   }).int().positive('La cantidad debe ser mayor que 0.'),
-  notes: z.string().trim().max(255, 'La nota no puede exceder los 255 caracteres.').optional().nullable(),
+  notes: z.string().trim().max(255, 'La nota no puede exceder los 255 caracteres.').optional().nullable().transform(val => val ? escapeHtml(val) : val),
   selectedModifiers: z.record(z.any()).optional().nullable() // e.g. { "Término": "3/4" }
 });
 
