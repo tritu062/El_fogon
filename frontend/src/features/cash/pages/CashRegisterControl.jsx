@@ -39,6 +39,9 @@ export default function CashRegisterControl({ activeRegister, registerStats, ref
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
+  const typedCents = actualClosingBalance && !isNaN(parseFloat(actualClosingBalance)) ? Math.round(parseFloat(actualClosingBalance) * 100) : null;
+  const liveDiscrepancy = typedCents !== null ? typedCents - registerStats.expectedClosingBalance : null;
+
   if (!activeRegister || !registerStats) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-slate-500">
@@ -188,6 +191,23 @@ export default function CashRegisterControl({ activeRegister, registerStats, ref
                   className="w-full pl-7.5 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl text-base font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-brand-500/20 outline-none"
                 />
               </div>
+              {liveDiscrepancy !== null && (
+                <div className={`mt-2.5 p-3 rounded-xl border text-xs font-bold ${
+                  liveDiscrepancy === 0
+                    ? 'bg-green-50 dark:bg-green-950/15 border-green-200 dark:border-green-900/40 text-green-600 dark:text-green-400'
+                    : liveDiscrepancy > 0
+                    ? 'bg-blue-50 dark:bg-blue-950/15 border-blue-200 dark:border-blue-900/40 text-blue-600 dark:text-blue-400'
+                    : 'bg-red-50 dark:bg-red-950/15 border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400'
+                }`}>
+                  Diferencia calculada:{' '}
+                  {liveDiscrepancy === 0
+                    ? 'Caja Cuadrada ($0.00)'
+                    : liveDiscrepancy > 0
+                    ? `+$${(liveDiscrepancy / 100).toLocaleString('es-CO')} (Sobrante)`
+                    : `-$${(Math.abs(liveDiscrepancy) / 100).toLocaleString('es-CO')} (Faltante)`
+                  }
+                </div>
+              )}
             </div>
 
             <div>

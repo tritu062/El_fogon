@@ -98,6 +98,17 @@ export default function SalonDashboard() {
         </button>
       </div>
 
+      {/* Caja de ayuda e indicaciones de uso para nuevos usuarios */}
+      <div className="bg-blue-50/50 dark:bg-blue-950/10 border border-blue-200/50 dark:border-blue-900/40 p-4.5 rounded-2xl text-xs text-slate-700 dark:text-slate-350 flex items-start gap-3.5 shadow-inner">
+        <div className="p-2 bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-xl font-bold shrink-0">💡 Ayuda</div>
+        <div className="space-y-1">
+          <p className="font-extrabold text-slate-800 dark:text-white">¿Cómo gestionar el Salón?</p>
+          <p>• Las mesas en <span className="text-green-600 dark:text-green-450 font-bold">VERDE (Libre)</span> están listas para recibir comensales. Haz clic en <strong>Tomar Pedido</strong> para abrir una comanda.</p>
+          <p>• Las mesas en <span className="text-red-500 dark:text-red-400 font-bold">ROJO (Ocupada)</span> tienen consumo en curso. Puedes presionar <strong>Adicionar</strong> para agregar platos o bebidas.</p>
+          <p>• Las mesas en <span className="text-amber-500 dark:text-amber-400 font-bold">AMARILLO (Reservada)</span> están reservadas. El mesero puede cambiar manualmente su estado a Ocupada al llegar el cliente.</p>
+        </div>
+      </div>
+
       {/* Indicadores / Métricas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm flex items-center space-x-4">

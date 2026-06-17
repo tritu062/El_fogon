@@ -139,6 +139,21 @@ export default function OrderTaking() {
     setSelectedItemForModal(null);
   };
 
+  const handleClearCartConfirm = () => {
+    if (window.confirm('¿Estás seguro de que deseas vaciar todos los platos de esta comanda?')) {
+      clearCart();
+    }
+  };
+
+  const handleBackToSalon = () => {
+    if (cartItems.length > 0) {
+      if (!window.confirm('Tienes platos agregados a la comanda. Si sales al salón, perderás estos cambios. ¿Deseas salir?')) {
+        return;
+      }
+    }
+    navigate('/dashboard/waiter/tables');
+  };
+
   // Enviar comanda al backend
   const handleSubmitOrder = async () => {
     if (cartItems.length === 0) return;
@@ -219,7 +234,7 @@ export default function OrderTaking() {
             </h2>
             {queryTableId && (
               <button 
-                onClick={() => navigate('/dashboard/waiter/tables')}
+                onClick={handleBackToSalon}
                 className="inline-flex items-center gap-1 text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 <ArrowLeft className="w-3.5 h-3.5" /> Volver al Salón
@@ -353,9 +368,19 @@ export default function OrderTaking() {
               {targetOrderId ? `Adicionar a Comanda #${targetOrderId}` : 'Nueva Comanda'}
             </h3>
           </div>
-          <span className="bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 text-xs font-extrabold px-2.5 py-0.5 rounded-full border border-orange-100 dark:border-orange-900/40">
-            {cartItems.length} ítems
-          </span>
+          <div className="flex items-center gap-2">
+            {cartItems.length > 0 && (
+              <button
+                onClick={handleClearCartConfirm}
+                className="text-[10px] font-bold text-red-500 hover:text-red-650 bg-red-50 dark:bg-red-950/25 px-2 py-1 rounded border border-red-100 dark:border-red-950 transition-all uppercase tracking-wider"
+              >
+                Vaciar
+              </button>
+            )}
+            <span className="bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 text-xs font-extrabold px-2.5 py-0.5 rounded-full border border-orange-100 dark:border-orange-900/40">
+              {cartItems.length} ítems
+            </span>
+          </div>
         </div>
 
         {/* Cuerpo / Ítems en Carrito */}
