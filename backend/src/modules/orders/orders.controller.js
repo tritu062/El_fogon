@@ -542,10 +542,80 @@ async function updateOrderStatus(req, res, next) {
   }
 }
 
+// 6. Obtener pedidos optimizados para la cocina (KDS)
+async function getKitchenOrders(req, res, next) {
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [pending, ready] = await Promise.all([
+      // Pedidos PENDING (por preparar), más antiguos primero (FIFO)
+      prisma.order.findMany({
+        where: {
+          status: 'PENDING',
+          deletedAt: null
+        },
+        include: {
+          table: true,
+          waiter: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          },
+          orderItems: {
+            where: { deletedAt: null },
+            include: {
+              item: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'asc' }
+      }),
+      // Pedidos READY despachados hoy, más recientes primero
+      prisma.order.findMany({
+        where: {
+          status: 'READY',
+          updatedAt: { gte: todayStart },
+          deletedAt: null
+        },
+        include: {
+          table: true,
+          waiter: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          },
+          orderItems: {
+            where: { deletedAt: null },
+            include: {
+              item: true
+            }
+          }
+        },
+        orderBy: { updatedAt: 'desc' }
+      })
+    ]);
+
+    return res.status(200).json({
+      status: 'success',
+      pending,
+      ready
+    });
+  } catch (error) {
+    logger.error('Error al obtener pedidos de cocina (KDS):', error);
+    next(error);
+  }
+}
+
 module.exports = {
   getAllOrders,
   getOrderById,
   createOrder,
   appendItemsToOrder,
-  updateOrderStatus
+  updateOrderStatus,
+  getKitchenOrders
 };

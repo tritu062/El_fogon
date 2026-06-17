@@ -59,5 +59,17 @@ export const ordersService = {
   async updateOrderStatus(id, status) {
     const response = await api.patch(`/orders/${id}/status`, { status });
     return response.data.order;
+  },
+
+  /**
+   * Obtiene los pedidos optimizados para la cocina (KDS).
+   * @returns {Promise<{ pending: Array, ready: Array }>}
+   */
+  async getKitchenOrders() {
+    const response = await api.get('/orders/kitchen');
+    return {
+      pending: response.data.pending,
+      ready: response.data.ready
+    };
   }
 };

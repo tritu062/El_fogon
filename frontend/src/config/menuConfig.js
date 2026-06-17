@@ -36,13 +36,10 @@ export const MENU_CONFIG = {
     { name: 'Historial de turnos', path: '/dashboard/waiter/shifts', icon: History, color: 'text-amber-500' }
   ],
   COCINERO: [
-    { name: 'Pedidos activos', path: '/dashboard/chef/orders', icon: Clock, color: 'text-yellow-500' },
-    { name: 'Marcar listo', path: '/dashboard/chef/dispatch', icon: CheckSquare, color: 'text-yellow-500' },
-    { name: 'Historial del día', path: '/dashboard/chef/history', icon: History, color: 'text-yellow-500' }
+    { name: 'Panel Cocina (KDS)', path: '/dashboard/chef/orders', icon: ChefHat, color: 'text-yellow-500' }
   ],
   CAJERO: [
     { name: 'Cuentas pendientes', path: '/dashboard/cashier/pending', icon: FileText, color: 'text-emerald-500' },
-    { name: 'Procesar pago', path: '/dashboard/cashier/payment', icon: CreditCard, color: 'text-emerald-500' },
     { name: 'Cierre de caja', path: '/dashboard/cashier/closing', icon: Archive, color: 'text-emerald-500' },
     { name: 'Historial transacciones', path: '/dashboard/cashier/transactions', icon: DollarSign, color: 'text-emerald-500' }
   ]

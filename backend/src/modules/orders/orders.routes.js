@@ -4,7 +4,8 @@ const {
   getOrderById,
   createOrder,
   appendItemsToOrder,
-  updateOrderStatus
+  updateOrderStatus,
+  getKitchenOrders
 } = require('./orders.controller');
 const authenticate = require('../../middlewares/authenticate');
 const authorize = require('../../middlewares/authorize');
@@ -13,6 +14,7 @@ const router = Router();
 
 // Lectura de pedidos (Todos los roles autenticados)
 router.get('/', authenticate, getAllOrders);
+router.get('/kitchen', authenticate, authorize(['COCINERO', 'ADMINISTRADOR']), getKitchenOrders);
 router.get('/:id', authenticate, getOrderById);
 
 // Creación de pedidos (Meseros y Administradores)

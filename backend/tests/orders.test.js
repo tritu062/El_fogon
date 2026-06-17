@@ -257,4 +257,53 @@ describe('Suite de Pruebas: Gestión de Pedidos (Fase 7)', () => {
       });
     });
   });
+
+  describe('GET /api/orders/kitchen - KDS de Cocina', () => {
+    it('debería denegar acceso si no está autenticado', async () => {
+      const res = await request(app)
+        .get('/api/orders/kitchen')
+        .set('x-skip-rate-limit', 'true');
+      expect(res.status).toBe(401);
+    });
+
+    it('debería denegar acceso si el rol no es COCINERO o ADMINISTRADOR', async () => {
+      vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockWaiter);
+
+      const res = await request(app)
+        .get('/api/orders/kitchen')
+        .set('Authorization', `Bearer ${waiterToken}`)
+        .set('x-skip-rate-limit', 'true');
+
+      expect(res.status).toBe(403);
+    });
+
+    it('debería retornar las comandas pendientes y listas del día', async () => {
+      vi.spyOn(prisma.user, 'findFirst').mockResolvedValue(mockCook);
+
+      const mockPendingOrders = [
+        { id: 10, status: 'PENDING', total: 1500, createdAt: new Date() }
+      ];
+      const mockReadyOrders = [
+        { id: 9, status: 'READY', total: 2000, updatedAt: new Date() }
+      ];
+
+      // findMany se llama dos veces en Promise.all
+      const findManySpy = vi.spyOn(prisma.order, 'findMany')
+        .mockResolvedValueOnce(mockPendingOrders)
+        .mockResolvedValueOnce(mockReadyOrders);
+
+      const res = await request(app)
+        .get('/api/orders/kitchen')
+        .set('Authorization', `Bearer ${cookToken}`)
+        .set('x-skip-rate-limit', 'true');
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.pending).toHaveLength(1);
+      expect(res.body.ready).toHaveLength(1);
+      expect(res.body.pending[0].id).toBe(10);
+      expect(res.body.ready[0].id).toBe(9);
+      expect(findManySpy).toHaveBeenCalledTimes(2);
+    });
+  });
 });

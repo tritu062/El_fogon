@@ -9,6 +9,11 @@ import SalonDashboard from '../features/tables/pages/SalonDashboard';
 import AdminTablesConfig from '../features/tables/pages/AdminTablesConfig';
 import AdminMenuConfig from '../features/catalog/pages/AdminMenuConfig';
 import OrderTaking from '../features/orders/pages/OrderTaking';
+import KitchenKds from '../features/kitchen/pages/KitchenKds';
+import CashRegisterGate from '../features/cash/components/CashRegisterGate';
+import PendingBillsList from '../features/bills/pages/PendingBillsList';
+import CashRegisterControl from '../features/cash/pages/CashRegisterControl';
+import TransactionsHistory from '../features/bills/pages/TransactionsHistory';
 
 // Vista local rápida de Acceso Denegado (403)
 function UnauthorizedPage() {
@@ -59,11 +64,15 @@ export default function AppRoutes() {
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['COCINERO', 'ADMINISTRADOR']} />}>
-            <Route path="chef" element={<ChefDashboard />} />
+            <Route path="chef" element={<Navigate to="orders" replace />} />
+            <Route path="chef/orders" element={<KitchenKds />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['CAJERO', 'ADMINISTRADOR']} />}>
-            <Route path="cashier" element={<CashierDashboard />} />
+            <Route path="cashier" element={<Navigate to="pending" replace />} />
+            <Route path="cashier/pending" element={<CashRegisterGate><PendingBillsList /></CashRegisterGate>} />
+            <Route path="cashier/closing" element={<CashRegisterGate><CashRegisterControl /></CashRegisterGate>} />
+            <Route path="cashier/transactions" element={<CashRegisterGate><TransactionsHistory /></CashRegisterGate>} />
           </Route>
         </Route>
       </Route>

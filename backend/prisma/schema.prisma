@@ -26,6 +26,8 @@ model User {
   auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
   orders        Order[]
+  cashRegisters CashRegister[]
+  bills         Bill[]
 
   @@map("users")
 }
@@ -192,7 +194,9 @@ model Order {
   table     Table?      @relation(fields: [tableId], references: [id], onDelete: Restrict)
   waiter    User        @relation(fields: [waiterId], references: [id], onDelete: Restrict)
   orderItems OrderItem[]
+  bill      Bill?
 
+  @@index([status, createdAt])
   @@map("orders")
 }
 
@@ -214,4 +218,75 @@ model OrderItem {
   item              Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
   @@map("order_items")
+}
+
+enum CashRegisterStatus {
+  OPEN
+  CLOSED
+}
+
+model CashRegister {
+  id                     Int                @id @default(autoincrement())
+  cashierId              Int                @map("cashier_id")
+  openingTime            DateTime           @default(now()) @map("opening_time")
+  closingTime            DateTime?          @map("closing_time")
+  openingBalance         Int                @map("opening_balance") // En centavos
+  expectedClosingBalance Int?               @map("expected_closing_balance") // En centavos
+  actualClosingBalance   Int?               @map("actual_closing_balance") // En centavos
+  discrepancy            Int?               @map("discrepancy") // En centavos
+  notes                  String?
+  status                 CashRegisterStatus @default(OPEN)
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+  deletedAt              DateTime?          @map("deleted_at")
+
+  // Relaciones
+  cashier                User               @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+  bills                  Bill[]
+
+  @@map("cash_registers")
+}
+
+model Bill {
+  id              Int          @id @default(autoincrement())
+  orderId         Int          @unique @map("order_id")
+  cashierId       Int          @map("cashier_id")
+  cashRegisterId  Int          @map("cash_register_id")
+  subtotal        Int          // En centavos
+  tax             Int          @default(0) // En centavos
+  discount        Int          @default(0) // En centavos
+  total           Int          // En centavos
+  invoiceNumber   String       @unique @map("invoice_number")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
+
+  // Relaciones
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  cashier         User         @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+  cashRegister    CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Restrict)
+  payments        Payment[]
+
+  @@map("bills")
+}
+
+enum PaymentMethod {
+  EFECTIVO
+  TARJETA
+  TRANSFERENCIA
+}
+
+model Payment {
+  id        Int           @id @default(autoincrement())
+  billId    Int           @map("bill_id")
+  amount    Int           // En centavos
+  method    PaymentMethod
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  deletedAt DateTime?     @map("deleted_at")
+
+  // Relaciones
+  bill      Bill          @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
 }
