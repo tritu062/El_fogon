@@ -28,6 +28,7 @@ export const MENU_CONFIG = {
     { name: 'Gestión de usuarios', path: '/dashboard/admin/users', icon: Users, color: 'text-orange-500' },
     { name: 'Gestión de mesas', path: '/dashboard/admin/tables', icon: Grid, color: 'text-orange-500' },
     { name: 'Carta / menú', path: '/dashboard/admin/menu', icon: Utensils, color: 'text-orange-500' },
+    { name: 'Reportes y estadísticas', path: '/dashboard/admin/reports', icon: BarChart3, color: 'text-orange-500' },
     { name: 'Logs de auditoría', path: '/dashboard/admin/audit', icon: History, color: 'text-orange-500' }
   ],
   MESERO: [
