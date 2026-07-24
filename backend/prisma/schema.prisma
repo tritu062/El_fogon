@@ -28,6 +28,7 @@ model User {
   orders        Order[]
   cashRegisters CashRegister[]
   bills         Bill[]
+  inventoryMovements InventoryMovement[]
 
   @@map("users")
 }
@@ -301,3 +302,51 @@ model Payment {
 
   @@map("payments")
 }
+
+// Modelo de Insumos / Ingredientes de Inventario
+model Ingredient {
+  id           Int                 @id @default(autoincrement())
+  name         String              @unique
+  category     String              @default("ABARROTES") // Ej: "CARNES", "VERDURAS", "LACTEOS", "ABARROTES", "BEBIDAS", "DESECHABLES"
+  unit         String              @default("UNIDADES")  // Ej: "KG", "LB", "LITROS", "UNIDADES", "PAQUETES"
+  currentStock Float               @default(0) @map("current_stock")
+  minStock     Float               @default(0) @map("min_stock")
+  unitCost     Int                 @default(0) @map("unit_cost") // En centavos
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+  deletedAt    DateTime?           @map("deleted_at") // Soft delete
+
+  // Relaciones
+  movements    InventoryMovement[]
+
+  @@map("ingredients")
+}
+
+enum MovementType {
+  DAILY_CONSUMPTION // Consumo diario registrado al cierre/jornada
+  PURCHASE          // Compra / Reabastecimiento de mercancía
+  WASTAGE           // Merma, pérdida o daño
+  ADJUSTMENT        // Ajuste de inventario físico
+}
+
+model InventoryMovement {
+  id             Int          @id @default(autoincrement())
+  ingredientId   Int          @map("ingredient_id")
+  registeredById Int          @map("registered_by_id")
+  type           MovementType
+  quantity       Float        // Positivo para compras/ajustes, positivo en consumo/merma
+  unitCost       Int?         @map("unit_cost") // Costo unitario en centavos al momento del movimiento
+  totalCost      Int?         @map("total_cost") // Costo total calculado en centavos
+  notes          String?
+  date           DateTime     @default(now())
+
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  // Relaciones
+  ingredient     Ingredient   @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  registeredBy   User         @relation(fields: [registeredById], references: [id], onDelete: Restrict)
+
+  @@map("inventory_movements")
+}
+

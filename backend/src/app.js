@@ -19,6 +19,7 @@ const cashRoutes = require('./modules/cash/cash.routes');
 const billRoutes = require('./modules/bills/bills.routes');
 const userRoutes = require('./modules/users/users.routes');
 const auditRoutes = require('./modules/audit/audit.routes');
+const inventoryRoutes = require('./modules/inventory/inventoryRoutes');
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use('/api/cash-registers', cashRoutes);
 app.use('/api/bills', billRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/audit-logs', auditRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 // 6. Middleware para atrapar solicitudes a rutas inexistentes (404)
 app.use((req, res, next) => {

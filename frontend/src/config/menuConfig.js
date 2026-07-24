@@ -13,7 +13,8 @@ import {
   FileText,
   CreditCard,
   Archive,
-  DollarSign
+  DollarSign,
+  Package
 } from 'lucide-react';
 
 /**
@@ -23,12 +24,11 @@ import {
 export const MENU_CONFIG = {
   ADMINISTRADOR: [
     { name: 'Dashboard general', path: '/dashboard/admin', icon: LayoutDashboard, color: 'text-orange-500' },
+    { name: 'Inventario e insumos', path: '/dashboard/admin/inventory', icon: Package, color: 'text-orange-500' },
     { name: 'Gestión de usuarios', path: '/dashboard/admin/users', icon: Users, color: 'text-orange-500' },
     { name: 'Gestión de mesas', path: '/dashboard/admin/tables', icon: Grid, color: 'text-orange-500' },
     { name: 'Carta / menú', path: '/dashboard/admin/menu', icon: Utensils, color: 'text-orange-500' },
-    { name: 'Reportes y estadísticas', path: '/dashboard/admin/reports', icon: BarChart3, color: 'text-orange-500' },
-    { name: 'Logs de auditoría', path: '/dashboard/admin/audit', icon: History, color: 'text-orange-500' },
-    { name: 'Configuración del sistema', path: '/dashboard/admin/settings', icon: Settings, color: 'text-orange-500' }
+    { name: 'Logs de auditoría', path: '/dashboard/admin/audit', icon: History, color: 'text-orange-500' }
   ],
   MESERO: [
     { name: 'Mis mesas activas', path: '/dashboard/waiter/tables', icon: Grid, color: 'text-amber-500' },

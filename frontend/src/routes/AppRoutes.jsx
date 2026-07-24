@@ -16,6 +16,8 @@ import CashRegisterGate from '../features/cash/components/CashRegisterGate';
 import PendingBillsList from '../features/bills/pages/PendingBillsList';
 import CashRegisterControl from '../features/cash/pages/CashRegisterControl';
 import TransactionsHistory from '../features/bills/pages/TransactionsHistory';
+import InventoryDashboard from '../features/inventory/pages/InventoryDashboard';
+import DailyConsumptionPage from '../features/inventory/pages/DailyConsumptionPage';
 
 // Vista local rápida de Acceso Denegado (403)
 function UnauthorizedPage() {
@@ -59,6 +61,8 @@ export default function AppRoutes() {
             <Route path="admin/tables" element={<AdminTablesConfig />} />
             <Route path="admin/menu" element={<AdminMenuConfig />} />
             <Route path="admin/audit" element={<AdminAuditLogs />} />
+            <Route path="admin/inventory" element={<InventoryDashboard />} />
+            <Route path="admin/inventory/daily" element={<DailyConsumptionPage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['MESERO', 'ADMINISTRADOR']} />}>

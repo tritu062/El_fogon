@@ -280,6 +280,35 @@ async function main() {
   }
   console.log('✅ Platos y bebidas de ejemplo procesados');
 
+  // 8. Crear Insumos / Ingredientes de ejemplo para Inventario (Fase 10)
+  const ingredientsToSeed = [
+    { name: 'Lomo de Res', category: 'CARNES', unit: 'KG', currentStock: 25.0, minStock: 5.0, unitCost: 2800 },
+    { name: 'Pechuga de Pollo', category: 'CARNES', unit: 'KG', currentStock: 30.0, minStock: 8.0, unitCost: 1500 },
+    { name: 'Frijol Rojo', category: 'ABARROTES', unit: 'KG', currentStock: 15.0, minStock: 4.0, unitCost: 500 },
+    { name: 'Arroz Blanco', category: 'ABARROTES', unit: 'KG', currentStock: 40.0, minStock: 10.0, unitCost: 350 },
+    { name: 'Aceite Vegetal', category: 'ABARROTES', unit: 'LITROS', currentStock: 12.0, minStock: 3.0, unitCost: 450 },
+    { name: 'Arepa Maíz Blanca', category: 'ABARROTES', unit: 'UNIDADES', currentStock: 100.0, minStock: 20.0, unitCost: 40 },
+    { name: 'Tomate Chonto', category: 'VERDURAS', unit: 'KG', currentStock: 3.0, minStock: 5.0, unitCost: 300 },
+    { name: 'Papa Pastusa', category: 'VERDURAS', unit: 'KG', currentStock: 18.0, minStock: 5.0, unitCost: 250 },
+    { name: 'Queso Campesino', category: 'LACTEOS', unit: 'KG', currentStock: 6.0, minStock: 2.0, unitCost: 1200 },
+    { name: 'Empaque Para Llevar', category: 'DESECHABLES', unit: 'UNIDADES', currentStock: 150.0, minStock: 30.0, unitCost: 20 }
+  ];
+
+  for (const ing of ingredientsToSeed) {
+    await prisma.ingredient.upsert({
+      where: { name: ing.name },
+      update: {
+        category: ing.category,
+        unit: ing.unit,
+        minStock: ing.minStock,
+        unitCost: ing.unitCost,
+        deletedAt: null
+      },
+      create: ing
+    });
+  }
+  console.log('✅ Insumos e ingredientes de inventario procesados');
+
   console.log('🌱 Proceso de siembra completado con éxito.');
 }
 
