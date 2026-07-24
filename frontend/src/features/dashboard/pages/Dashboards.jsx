@@ -2,6 +2,9 @@ import React, { useContext, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../../../context/AuthContext';
 import { ordersService } from '../../orders/services/ordersService';
+import { reportsService } from '../../reports/services/reportsService';
+import { inventoryService } from '../../inventory/services/inventoryService';
+import { tablesService } from '../../tables/services/tablesService';
 import { 
   Users, 
   Utensils, 
@@ -15,7 +18,13 @@ import {
   Trash2,
   Receipt,
   Plus,
-  Loader2
+  Loader2,
+  RefreshCw,
+  Package,
+  ArrowRight,
+  ShieldAlert,
+  Award,
+  Grid
 } from 'lucide-react';
 
 /**
@@ -43,38 +52,353 @@ function StatCard({ title, value, icon: Icon, color, description }) {
 }
 
 // ==========================================
-// 1. DASHBOARD DEL ADMINISTRADOR
+// 1. DASHBOARD DEL ADMINISTRADOR (TIEMPO REAL)
 // ==========================================
 export function AdminDashboard() {
   const { user } = useContext(AuthContext);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  // Estados en Vivo
+  const [kpis, setKpis] = useState({
+    totalSales: 0,
+    totalBillsCount: 0,
+    averageTicket: 0,
+    totalOrdersCount: 0,
+    activeOrdersCount: 0
+  });
+
+  const [inventoryAlerts, setInventoryAlerts] = useState([]);
+  const [tablesStats, setTablesStats] = useState({ total: 0, occupied: 0, free: 0 });
+  const [topItems, setTopItems] = useState([]);
+
+  const fetchRealtimeData = async (showLoading = false) => {
+    if (showLoading) setLoading(true);
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      // Consultas paralelas en tiempo real
+      const [reportsData, ingredientsData, tablesData, ordersData] = await Promise.all([
+        reportsService.getDashboardSummary({ startDate: todayStr, endDate: todayStr }).catch(() => null),
+        inventoryService.getIngredients().catch(() => []),
+        tablesService.getTables().catch(() => []),
+        ordersService.getOrders().catch(() => [])
+      ]);
+
+      // 1. KPIs del día
+      if (reportsData) {
+        setKpis({
+          totalSales: reportsData.kpis?.totalSales || 0,
+          totalBillsCount: reportsData.kpis?.totalBillsCount || 0,
+          averageTicket: reportsData.kpis?.averageTicket || 0,
+          totalOrdersCount: reportsData.kpis?.totalOrdersCount || 0,
+          activeOrdersCount: Array.isArray(ordersData)
+            ? ordersData.filter((o) => ['PENDING', 'PREPARING', 'READY', 'SERVED'].includes(o.status)).length
+            : 0
+        });
+        setTopItems(reportsData.topItems || []);
+      }
+
+      // 2. Insumos en alerta o críticos (status !== 'OK')
+      if (Array.isArray(ingredientsData)) {
+        const alerts = ingredientsData.filter((ing) => ing.status !== 'OK');
+        setInventoryAlerts(alerts);
+      }
+
+      // 3. Mesas
+      if (Array.isArray(tablesData)) {
+        const total = tablesData.length;
+        const occupied = tablesData.filter((t) => t.status === 'OCCUPIED').length;
+        setTablesStats({
+          total,
+          occupied,
+          free: total - occupied
+        });
+      }
+
+      setLastUpdated(new Date());
+      setError(null);
+    } catch (err) {
+      console.error('Error al sincronizar dashboard en tiempo real:', err);
+      setError('No se pudo actualizar la información en tiempo real.');
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRealtimeData(true);
+
+    // Polling en tiempo real cada 10 segundos
+    const interval = setInterval(() => {
+      fetchRealtimeData(false);
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const criticalCount = inventoryAlerts.filter((i) => i.status === 'CRITICAL').length;
+  const warningCount = inventoryAlerts.filter((i) => i.status === 'WARNING').length;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Panel de Control</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Hola {user?.firstName}, aquí está el resumen operacional del restaurante.</p>
+      {/* HEADER Y MONITOR EN VIVO */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight">Panel de Control General</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+            Hola <span className="font-bold text-slate-800 dark:text-slate-200">{user?.firstName}</span>, visualiza las métricas operacionales del restaurante en tiempo real.
+          </p>
+        </div>
+
+        {/* INDICADOR DE TIEMPO REAL */}
+        <div className="flex items-center gap-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-2 rounded-2xl shadow-sm flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">En Vivo</span>
+            {lastUpdated && (
+              <span className="text-[11px] text-slate-400 font-mono hidden md:inline">
+                ({lastUpdated.toLocaleTimeString('es-CO')})
+              </span>
+            )}
+          </div>
+
+          <button
+            onClick={() => fetchRealtimeData(false)}
+            title="Actualizar datos ahora"
+            className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* KPI GRID */}
+      {error && (
+        <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/20 border border-red-200 text-red-700 dark:text-red-300 text-sm font-medium">
+          ⚠️ {error}
+        </div>
+      )}
+
+      {/* KPI GRID (DATOS EN VIVO) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Ventas del Día" value="$1,240.50" icon={TrendingUp} color="text-emerald-500" description="+12% que ayer" />
-        <StatCard title="Pedidos Totales" value="48" icon={ShoppingBag} color="text-brand-500" description="12 activos ahora" />
-        <StatCard title="Personal en Turno" value="6" icon={Users} color="text-blue-500" description="4 meseros, 2 cocineros" />
-        <StatCard title="Alertas de Inventario" value="2" icon={AlertTriangle} color="text-red-500" description="Carne de res, Tomates" />
+        <StatCard
+          title="Ventas del Día"
+          value={`$${(kpis.totalSales / 100).toLocaleString('es-CO', { minimumFractionDigits: 2 })}`}
+          icon={TrendingUp}
+          color="text-emerald-500"
+          description={`${kpis.totalBillsCount} facturas cobradas hoy`}
+        />
+        <StatCard
+          title="Comandas del Día"
+          value={kpis.totalOrdersCount}
+          icon={ShoppingBag}
+          color="text-brand-500"
+          description={`${kpis.activeOrdersCount} comandas en curso`}
+        />
+        <StatCard
+          title="Ocupación de Mesas"
+          value={`${tablesStats.occupied} / ${tablesStats.total}`}
+          icon={Grid}
+          color="text-blue-500"
+          description={`${tablesStats.free} mesas disponibles`}
+        />
+        <StatCard
+          title="Alertas Inventario"
+          value={inventoryAlerts.length}
+          icon={AlertTriangle}
+          color={inventoryAlerts.length > 0 ? "text-amber-500" : "text-emerald-500"}
+          description={
+            criticalCount > 0
+              ? `🚨 ${criticalCount} insumo(s) AGOTADO(S)`
+              : warningCount > 0
+              ? `⚠️ ${warningCount} insumo(s) stock bajo`
+              : 'Todo el stock normal'
+          }
+        />
       </div>
 
-      {/* ACCIONES RÁPIDAS */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm">
-        <h2 className="text-xl font-bold mb-4">Acciones Administrativas Rápidas</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button className="p-4 rounded-xl bg-orange-50 dark:bg-orange-950/10 border border-orange-200 dark:border-orange-900/60 hover:bg-orange-100 dark:hover:bg-orange-950/20 text-orange-600 dark:text-orange-400 font-bold transition-all text-center">
-            👤 Registrar Nuevo Empleado
-          </button>
-          <button className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/10 border border-amber-200 dark:border-amber-900/60 hover:bg-amber-100 dark:hover:bg-amber-950/20 text-amber-600 dark:text-amber-400 font-bold transition-all text-center">
-            📊 Descargar Reporte Diario
-          </button>
-          <button className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 font-bold transition-all text-center">
-            ⚙️ Ajustes del Sistema
-          </button>
+      {/* SECCIÓN DESTACADA: ALERTAS DE INSUMOS CERCA DE ACABARSE / AGOTADOS */}
+      {inventoryAlerts.length > 0 ? (
+        <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 dark:from-amber-950/30 dark:via-orange-950/30 dark:to-red-950/30 border border-amber-300/80 dark:border-amber-900/60 p-6 rounded-3xl shadow-sm space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-amber-200/60 dark:border-amber-900/40 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-amber-500 text-white rounded-2xl shadow-md shadow-amber-500/20">
+                <ShieldAlert className="w-6 h-6 animate-bounce" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>Insumos Críticos / Muy Cerca de Acabarse</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-500 text-white">
+                    {inventoryAlerts.length}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Estos insumos requieren compra o reabastecimiento urgente para no afectar el menú.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to="/dashboard/admin/inventory"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-md shadow-amber-500/20 transition-all shrink-0"
+            >
+              <span>Gestionar Inventario</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          {/* TARJETAS DE INSUMOS EN PELIGRO */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+            {inventoryAlerts.map((ing) => {
+              const isCritical = ing.status === 'CRITICAL';
+              const stockPercent = Math.min(Math.round((ing.currentStock / (ing.minStock || 1)) * 100), 100);
+
+              return (
+                <div
+                  key={ing.id}
+                  className={`p-4 rounded-2xl border transition-all ${
+                    isCritical
+                      ? 'bg-red-50/80 dark:bg-red-950/40 border-red-200 dark:border-red-900/60'
+                      : 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-extrabold text-base text-slate-900 dark:text-white">{ing.name}</h3>
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{ing.category}</span>
+                    </div>
+
+                    {isCritical ? (
+                      <span className="px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-black uppercase tracking-wider animate-pulse">
+                        🔴 AGOTADO
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-full bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider">
+                        🟡 BAJO STOCK
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 space-y-1.5">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="text-slate-500 dark:text-slate-400">Existencia Actual:</span>
+                      <span className={isCritical ? 'text-red-600 font-black' : 'text-amber-600 font-extrabold'}>
+                        {ing.currentStock} {ing.unit} <span className="text-slate-400 font-normal">(Mín: {ing.minStock})</span>
+                      </span>
+                    </div>
+
+                    {/* BARRA DE PROGRESO DE STOCK */}
+                    <div className="w-full h-2 bg-slate-200/80 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${isCritical ? 'bg-red-500' : 'bg-amber-500'}`}
+                        style={{ width: `${Math.max(stockPercent, 5)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 flex items-center justify-between text-emerald-700 dark:text-emerald-300 text-xs font-bold">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span>Inventario en perfecto estado. Todos los insumos superan el límite de stock mínimo de seguridad.</span>
+          </span>
+          <Link to="/dashboard/admin/inventory" className="underline hover:text-emerald-900 dark:hover:text-emerald-100">
+            Ver Bodega
+          </Link>
+        </div>
+      )}
+
+      {/* PLATOS MÁS VENDIDOS Y ACCIONES RÁPIDAS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* PLATOS MÁS VENDIDOS HOY */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-3xl shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h2 className="text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+              <Award className="w-5 h-5 text-amber-500" />
+              <span>Platos Más Vendidos de Hoy</span>
+            </h2>
+            <Link to="/dashboard/admin/reports" className="text-xs font-bold text-brand-500 hover:underline">
+              Ver Analíticas Completa →
+            </Link>
+          </div>
+
+          {topItems.length === 0 ? (
+            <p className="text-xs text-slate-400 py-6 text-center">Aún no se registran comandas pagadas en el día de hoy.</p>
+          ) : (
+            <div className="space-y-3">
+              {topItems.slice(0, 4).map((item, idx) => (
+                <div key={item.id} className="flex justify-between items-center p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800 text-xs font-bold">
+                  <div className="flex items-center gap-3">
+                    <span className={`w-6 h-6 rounded-full text-xs flex items-center justify-center font-extrabold ${
+                      idx === 0 ? 'bg-amber-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}>
+                      #{idx + 1}
+                    </span>
+                    <div>
+                      <span className="font-extrabold text-slate-900 dark:text-white block">{item.name}</span>
+                      <span className="text-[10px] text-slate-400 font-normal">{item.category}</span>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-slate-900 dark:text-white font-extrabold block">{item.totalQuantity} porciones</span>
+                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                      ${(item.totalRevenue / 100).toLocaleString('es-CO')}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ACCIONES ADMINISTRATIVAS RÁPIDAS */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-3xl shadow-sm space-y-4">
+          <h2 className="text-lg font-extrabold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3">
+            Acciones Rápidas
+          </h2>
+
+          <div className="space-y-2.5">
+            <Link
+              to="/dashboard/admin/inventory/daily"
+              className="w-full p-3.5 rounded-2xl bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/60 hover:bg-orange-100 dark:hover:bg-orange-950/30 text-orange-600 dark:text-orange-400 font-bold transition-all text-xs flex items-center gap-2.5"
+            >
+              <Package className="w-4 h-4" />
+              <span>Cierre y Consumo Diario de Insumos</span>
+            </Link>
+
+            <Link
+              to="/dashboard/admin/users"
+              className="w-full p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/60 hover:bg-blue-100 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-bold transition-all text-xs flex items-center gap-2.5"
+            >
+              <Users className="w-4 h-4" />
+              <span>Gestionar Personal del Restaurante</span>
+            </Link>
+
+            <Link
+              to="/dashboard/admin/menu"
+              className="w-full p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 hover:bg-amber-100 dark:hover:bg-amber-950/30 text-amber-600 dark:text-amber-400 font-bold transition-all text-xs flex items-center gap-2.5"
+            >
+              <Utensils className="w-4 h-4" />
+              <span>Editar Carta y Precios de Platos</span>
+            </Link>
+
+            <Link
+              to="/dashboard/admin/reports"
+              className="w-full p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/60 hover:bg-emerald-100 dark:hover:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 font-bold transition-all text-xs flex items-center gap-2.5"
+            >
+              <TrendingUp className="w-4 h-4" />
+              <span>Ver Analíticas y Reportes de Ventas</span>
+            </Link>
+          </div>
         </div>
       </div>
     </div>
