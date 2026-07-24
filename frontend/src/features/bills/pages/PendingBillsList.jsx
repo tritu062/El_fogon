@@ -156,8 +156,7 @@ export default function PendingBillsList({ refreshRegister }) {
                           ? 'Preparando' 
                           : 'Pendiente'}
                       </span>
-                    </div>
-                  </div>div>
+                  </div>
 
                   {/* Resumen de items del pedido */}
                   <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-850/50 rounded-xl p-3 mb-4 max-h-40 overflow-y-auto">

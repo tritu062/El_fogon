@@ -1,0 +1,160 @@
+# 🚀 GUÍA DE EJERCICIO: VIBE CODING EN "EL FOGÓN"
+Este documento está diseñado para guiar a los estudiantes en la construcción paso a paso de un sistema de gestión para restaurantes utilizando "Vibe Coding" y asistentes de Inteligencia Artificial (como Cursor, Claude, Gemini o ChatGPT).
+
+---
+
+## 🧭 ¿Qué es el "Vibe Coding"?
+El Vibe Coding es un paradigma donde el desarrollador humano actúa como **Arquitecto y Director de Vuelo**, y la **Inteligencia Artificial** actúa como la herramienta constructora de código. 
+En este ejercicio, **no escribirás código manualmente**. Tu trabajo consiste en:
+1. Comprender los requisitos de negocio y las decisiones arquitectónicas.
+2. Redactar prompts precisos e iterar sobre las soluciones de la IA.
+3. Probar, auditar y validar críticamente el código generado.
+4. Entender el flujo de datos y las implicaciones de seguridad de lo que construye la IA.
+
+---
+
+## ⚙️ Reglas de Oro para el Alumno
+*   **No copies código a ciegas:** Lee cada archivo generado. Si hay algo que no entiendes, pídele a la IA que te lo explique.
+*   **Divide y vencerás:** Nunca le pidas a la IA que cree todo el proyecto a la vez. Hazlo fase por fase, probando y confirmando que funcione antes de seguir.
+*   **Guía a la IA con los errores:** Si la consola arroja un error o falla un test, copia el error completo y colócalo en el chat de la IA. Explícale qué esperabas y qué obtuviste.
+*   **Usa tipos de datos adecuados:** En especial, todo lo relacionado con dinero debe manejarse con enteros (centavos) para evitar pérdidas de precisión matemática.
+
+---
+
+## 🗺️ Fases del Desarrollo
+
+---
+
+### 📂 FASE 1: Estructura del Monorepo y Dockerización
+**Objetivo:** Crear el esqueleto del proyecto (backend con Node.js y Express, frontend con React y Vite) y configurar Docker para tener una base de datos PostgreSQL lista para desarrollo.
+
+#### 📝 Prompts sugeridos para la IA:
+> "Hola. Necesito crear la estructura base de un proyecto llamado 'El Fogón', un sistema de gestión de restaurantes. Quiero estructurarlo como un monorepo con dos carpetas principales: 'backend' (Node.js con Express) y 'frontend' (React 18 con Vite y TailwindCSS). 
+> Adicionalmente, genera un archivo 'docker-compose.yml' en la raíz que configure un contenedor de PostgreSQL para desarrollo local. Asegúrate de configurar un volumen para persistir los datos de la base de datos."
+
+#### 🔍 Verificación Humana:
+1. Ejecuta `docker compose up -d` en la raíz del proyecto.
+2. Verifica con una herramienta de base de datos (como DBeaver, pgAdmin o la extensión de VS Code) que la base de datos PostgreSQL se ha iniciado correctamente en el puerto `5432`.
+3. Levanta el servidor de React con `npm run dev` en la carpeta `frontend/` y el de Express en `backend/` para verificar que ambos muestran pantallas/respuestas base.
+
+#### 💡 Comentario de Aprendizaje:
+*   *Dockerización y Caché de Capas:* Al diseñar los Dockerfiles de desarrollo (`Dockerfile.dev`), enseña a tus alumnos que copiar primero el `package.json` y correr `npm install` antes de copiar el resto del código permite a Docker cachear la capa de dependencias. ¡Esto acelera los builds futuros!
+
+---
+
+### 🗄️ FASE 2: Modelado Relacional y Seguridad de Datos (Prisma ORM)
+**Objetivo:** Modelar la base de datos de forma robusta e implementar restricciones físicas e históricos de auditoría.
+
+#### 📝 Prompts sugeridos para la IA:
+> "Inicializa Prisma ORM en la carpeta backend. Configura el esquema 'schema.prisma' para conectarse a PostgreSQL. Necesito los siguientes modelos:
+> 1. User (email único, password hasheada, intentos de sesión, bloqueo de cuenta).
+> 2. Role (ej: 'ADMINISTRADOR', 'MESERO', 'COCINERO', 'CAJERO').
+> 3. UserRole (tabla intermedia explícita muchos a muchos entre User y Role).
+> 4. AuditLog (guarda userId, acción, descripción legible, ipAddress y userAgent).
+> 5. Zone y Table (mesas asignadas a zonas con estados FREE, OCCUPIED, RESERVED).
+> 6. Category e Item (platos y bebidas del menú. El precio debe ser un número entero 'Int' en centavos para evitar problemas de redondeo float).
+> 7. Order y OrderItem (pedidos y sus detalles. OrderItem debe guardar de forma histórica el precio de venta en centavos).
+> 8. CashRegister y Bill/Payment (para control de caja chica y cobro de cuentas).
+> 
+> Aplica la restricción 'onDelete: Restrict' en categorías y mesas para evitar que se borren accidentalmente si tienen ítems o comandas asociadas."
+
+#### 🔍 Verificación Humana:
+1. Ejecuta `npx prisma migrate dev --name init` en la carpeta backend.
+2. Revisa la base de datos para validar que las tablas físicas (`users`, `roles`, `user_roles`, `tables`, etc.) se hayan creado con las relaciones y claves foráneas correctas.
+
+#### 💡 Comentario de Aprendizaje:
+*   *Precios en Enteros (Centavos):* Operar importes monetarios usando Floats en JavaScript (`0.1 + 0.2 = 0.30000000000000004`) destruye los balances contables. Guardar $15.50 como `1550` centavos elimina los errores decimales.
+*   *Precio Histórico:* ¿Por qué duplicar el precio en `OrderItem` si ya está en `Item`? Si el precio de un plato cambia mañana en el menú, las facturas y reportes del pasado no deben alterarse. Esto es consistencia histórica de datos.
+
+---
+
+### 🔒 FASE 3: Autenticación Segura (JWT + httpOnly Cookies) y Saneamiento
+**Objetivo:** Crear un flujo de inicio de sesión y registro de usuarios altamente resistente a ciberataques comunes.
+
+#### 📝 Prompts sugeridos para la IA:
+> "Implementa en el backend un módulo de autenticación seguro:
+> - Registro y login de usuarios con contraseñas encriptadas con bcrypt.
+> - Almacena el Access Token (JWT de corta duración) en memoria (retornado en el JSON de respuesta) y el Refresh Token (JWT de larga duración) en una cookie httpOnly con las banderas Secure y SameSite=Strict.
+> - Bloquea cuentas temporalmente por 15 minutos tras 5 intentos fallidos consecutivos de inicio de sesión para prevenir ataques de fuerza bruta.
+> - Utiliza la librería Zod para validar y sanear todos los campos de entrada de datos en las peticiones HTTP. En particular, aplica transformaciones en Zod para escapar etiquetas HTML (prevención de XSS) en los nombres de los usuarios."
+
+#### 📝 Prompt para el Frontend:
+> "Crea un interceptor de Axios en el frontend. Si una petición segura falla con un error 401 (token expirado), activa una bandera para solicitar un nuevo token de acceso llamando a '/api/auth/refresh'. Las peticiones simultáneas que fallen mientras se refresca el token deben encolarse y reintentarse automáticamente una vez que obtengamos el nuevo token, sin obligar al usuario a iniciar sesión de nuevo."
+
+#### 🔍 Verificación Humana:
+1. Intenta iniciar sesión con una contraseña incorrecta 5 veces seguidas. Valida que el backend bloquee tu cuenta y retorne un error HTTP 403 con la hora de desbloqueo.
+2. Envía un campo de texto con código malicioso en el registro (ej. `<script>alert("hack")</script>`). Revisa la base de datos para confirmar que se ha guardado de forma segura como `&lt;script&gt;alert(&quot;hack&quot;)&lt;/script&gt;`.
+
+#### 💡 Comentario de Aprendizaje:
+*   *LocalStorage vs Cookies httpOnly:* Almacenar tokens persistentes en LocalStorage expone al usuario a robos de sesión mediante ataques XSS. Usar cookies httpOnly bloquea el acceso de Javascript al token, blindando la sesión.
+
+---
+
+### 🏢 FASE 4: Gestión del Salón y Control de Concurrencia
+**Objetivo:** Permitir configurar zonas y mesas, abrir comandas y evitar que dos meseros ocupen la misma mesa al mismo tiempo.
+
+#### 📝 Prompts sugeridos para la IA:
+> "Implementa la lógica del salón:
+> - Endpoints para crear zonas y mesas en el backend.
+> - Lógica de toma de comandas. Un pedido puede ser PRESENCIAL (requiere mesa), PARA_LLEVAR o DOMICILIO (el tableId es nulo).
+> - Para evitar condiciones de carrera (Race Conditions), cuando un mesero intente crear un pedido en una mesa física, ejecuta la verificación del estado de la mesa y la creación de la comanda dentro de una transacción atómica de Prisma (prisma.$transaction). Si la mesa ya está OCCUPIED o RESERVED, lanza un error HTTP 400 y aborta la transacción."
+
+#### 🔍 Verificación Humana:
+1. Crea un script o realiza dos peticiones HTTP rápidas en paralelo (usando herramientas de testing como Postman o mediante código) simulando a dos meseros intentando sentar clientes en la Mesa 1 al mismo tiempo.
+2. Verifica que el sistema solo acepte una comanda y rechace la segunda de forma limpia.
+
+#### 💡 Comentario de Aprendizaje:
+*   *Condiciones de Carrera:* Si el software consulta el estado de la mesa (`FREE`), y milisegundos después escribe la comanda, dos procesos paralelos leerán `FREE` al mismo tiempo, duplicando el consumo. Las transacciones atómicas bloquean temporalmente los registros para asegurar la consistencia.
+
+---
+
+### 🍳 FASE 5: Panel de Cocina (KDS) y Reglas de Negocio en Cancelaciones
+**Objetivo:** Crear un monitor para que los cocineros preparen pedidos en tiempo real y establecer límites de seguridad a los meseros.
+
+#### 📝 Prompts sugeridos para la IA:
+> "Desarrolla el módulo de Cocina y Cancelaciones:
+> - Endpoint KDS que devuelva los pedidos que están en estado PENDING y PREPARING. El cocinero debe poder iniciar la preparación (cambiar a PREPARING) y luego despachar la comanda (cambiar a READY).
+> - Reglas de seguridad para cancelaciones: Si un mesero intenta cancelar un plato o pedido y este está en PENDING o PREPARING, permíteselo pero oblígalo a registrar un motivo (mínimo 3 caracteres), escribiendo el evento en la tabla AuditLog. Si el pedido ya está en READY o SERVED, bloquea la cancelación y exige rol de ADMINISTRADOR para proceder. Esto evita pérdidas financieras."
+
+#### 📝 Prompt para el Frontend KDS:
+> "Crea una interfaz de cocina (KDS) en React que muestre las comandas activas ordenadas por tiempo de espera.
+> - Cada tarjeta de comanda debe cambiar de color/insignia según esté en cola o en preparación.
+> - Reproduce un pitido de alerta nativo de la web cuando ingrese un nuevo pedido. Añade un botón de configuración para activar o desactivar este audio, asegurando que el navegador respete de forma estricta la preferencia del usuario."
+
+#### 🔍 Verificación Humana:
+1. Inicia sesión como mesero e intenta cancelar un plato de un pedido que ya fue marcado como "Listo" (READY) por el cocinero. Valida que el sistema rechace la acción con error HTTP 403.
+2. Inicia sesión como administrador y realiza la misma cancelación. Verifica en la tabla `AuditLog` que se haya registrado el nombre del administrador y el motivo.
+
+---
+
+### 💵 FASE 6: Operaciones de Caja y Cuentas Divididas (Split Bills)
+**Objetivo:** Permitir cierres de caja y cobros con división de facturas matemáticamente exactos sin perder centavos por redondeos.
+
+#### 📝 Prompts sugeridos para la IA:
+> "Implementa la lógica de facturación y arqueo de caja en el backend:
+> - Flujo de caja: Apertura de caja con balance inicial, registro de facturas/pagos, y cierre de caja donde el sistema calcula el balance esperado contra el balance físico declarado, guardando la discrepancia.
+> - Soporte para cuentas divididas (Split Bills) de forma exacta:
+>   - Si se divide una cuenta en partes iguales, calcula el monto base en centavos (total / partes) y distribuye el residuo (total % partes) asignando 1 centavo extra a los primeros clientes de forma que la suma total sea idéntica al cobro original.
+>   - Si se cobra por ítems seleccionados, calcula la proporción de la selección contra el total del pedido. Aplica los descuentos e impuestos del pedido de forma proporcional a esa porción.
+>   - Control de redondeo final: Para el último pago que complete el total de los ítems del pedido, ignora la fórmula proporcional y asígnale directamente el saldo restante (remaining) del pedido. Esto garantiza que la factura se salde exactamente a 0 y no queden centavos sueltos por redondeos."
+
+#### 🔍 Verificación Humana:
+1. Crea un pedido con un total que no sea divisible de forma exacta entre 3 (por ejemplo, una cuenta de $100.01 = `10001` centavos).
+2. Simula el cobro en 3 partes iguales. Valida que los pagos registrados sean de $33.34, $33.34 y $33.33. La suma debe dar exactamente $100.01 (`10001` centavos) y la comanda debe cambiar de estado a `PAID`.
+3. Prueba a pagar seleccionando ítems uno por uno y verifica que al final de la transacción el saldo pendiente quede exactamente en $0.00.
+
+#### 💡 Comentario de Aprendizaje:
+*   *Ajuste de Cierre:* El redondeo matemático tradicional (`Math.round`) aplicado individualmente sobre muchas porciones de una cuenta siempre dejará un saldo flotante de +/- 1 o 2 centavos al final. Asignar el remanente real al último pago es la técnica estándar para el cuadre contable perfecto.
+
+---
+
+## 🏁 Criterio de Aceptación del Proyecto Completo
+Para dar por concluido el ejercicio, los estudiantes deben ser capaces de:
+1. Levantar el proyecto completo con Docker (`docker compose dev`).
+2. Registrar un mesero y un cajero en el sistema.
+3. Iniciar sesión, abrir la caja del cajero.
+4. Crear un pedido para una mesa, avanzar el estado en el KDS hasta despacho.
+5. Cobrar la cuenta dividiéndola entre 3 personas usando diferentes métodos de pago (Efectivo y Tarjeta).
+6. Cerrar el turno de caja y exportar o validar el log de auditoría (`AuditLog`) verificando que todos los movimientos sensibles tengan autoría e IP asignada.
+
+¡Mucho éxito con tus estudiantes en este viaje de Vibe Coding! 🧑‍💻🔥

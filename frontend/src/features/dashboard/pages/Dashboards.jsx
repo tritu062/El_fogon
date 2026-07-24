@@ -77,7 +77,11 @@ export function AdminDashboard() {
           </button>
         </div>
       </div>
-  // ==========================================
+    </div>
+  );
+}
+
+// ==========================================
 // 2. DASHBOARD DEL MESERO (TOMA DE PEDIDOS)
 // ==========================================
 export function WaiterDashboard() {
@@ -454,9 +458,6 @@ export function WaiterDashboard() {
           </div>
         </div>
       )}
-    </div>
-  );
-}</div>
     </div>
   );
 }

@@ -50,6 +50,17 @@ D:\Cris\ (Raíz del proyecto)
 
 ---
 
+## ⚡ Inicio Rápido en 1 Clic (Para Cualquier Usuario)
+
+Si deseas probar el sistema sin ejecutar comandos en terminal:
+1. Asegúrate de tener **[Node.js](https://nodejs.org/)** instalado.
+2. En Windows, haz **doble clic** en `iniciar_sistema.bat`. En Mac/Linux, ejecuta `./iniciar_sistema.sh`.
+3. Tu navegador se abrirá en `http://localhost:3000`.
+
+Consulta la **[GUIA_EJECUCION_RAPIDA.md](file:///d:/Cris/GUIA_EJECUCION_RAPIDA.md)** para ver el paso a paso completo y la tabla de credenciales de todos los roles (Admin, Mesero, Cocinero, Cajero).
+
+---
+
 ## 🚀 Requisitos e Instalación Rápida
 
 ### Prerrequisitos
