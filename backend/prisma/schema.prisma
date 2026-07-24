@@ -229,6 +229,8 @@ model OrderItem {
   order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   item              Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
+  @@index([orderId])
+  @@index([itemId])
   @@map("order_items")
 }
 
@@ -256,6 +258,7 @@ model CashRegister {
   cashier                User               @relation(fields: [cashierId], references: [id], onDelete: Restrict)
   bills                  Bill[]
 
+  @@index([cashierId, status])
   @@map("cash_registers")
 }
 
@@ -279,6 +282,8 @@ model Bill {
   cashRegister    CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Restrict)
   payments        Payment[]
 
+  @@index([createdAt])
+  @@index([cashierId])
   @@map("bills")
 }
 
@@ -336,7 +341,7 @@ model InventoryMovement {
   type           MovementType
   quantity       Float        // Positivo para compras/ajustes, positivo en consumo/merma
   unitCost       Int?         @map("unit_cost") // Costo unitario en centavos al momento del movimiento
-  totalCost      Int?         @map("total_cost") // Costo total calculado en centavos
+  totalCost      Int?         @map("total_cost") // Costo total calculated en centavos
   notes          String?
   date           DateTime     @default(now())
 
@@ -347,6 +352,7 @@ model InventoryMovement {
   ingredient     Ingredient   @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
   registeredBy   User         @relation(fields: [registeredById], references: [id], onDelete: Restrict)
 
+  @@index([ingredientId, date])
   @@map("inventory_movements")
 }
 

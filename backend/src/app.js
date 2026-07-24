@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
+const compression = require('compression');
 const path = require('path');
 
 const envConfig = require('./config/env');
@@ -27,7 +29,13 @@ const app = express();
 // Habilitar trust proxy para rate limiting e IPs de auditoría correctas en entornos con proxy inverso
 app.set('trust proxy', 1);
 
-// 1. Configuración de Seguridad y CORS
+// 1. Configuración de Seguridad HTTP y Compresión Gzip
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" } // Permite cargar imágenes estáticas públicamente
+}));
+app.use(compression());
+
+// 2. Configuración de CORS
 app.use(cors({
   origin: envConfig.FRONTEND_URL,
   credentials: true // Necesario para que el cliente lea cookies httpOnly
